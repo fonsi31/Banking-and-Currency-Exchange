@@ -16,7 +16,7 @@ main_menu <- function(){
 
     cat("\n")
     cat("***\n")
-    cat("choice =", choice, "\n")
+    cat("Choice =", choice, "\n")
 }
 
 register <- function(){
