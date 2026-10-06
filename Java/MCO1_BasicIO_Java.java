@@ -7,6 +7,8 @@ public class Main {
         String accountName = "";
 
         Scanner sc = new Scanner(System.in); // Initialize Scanner object to read user input
+        
+        Helpers.printSeparator();
 
         //Display option block for user to select transaction
         System.out.println("Select Transaction:");
@@ -40,7 +42,8 @@ public class Main {
         System.out.println("Account Name = " + accountName);
 
         Helpers.printSeparator();
-        
+
+
         sc.close(); 
     }
 }
