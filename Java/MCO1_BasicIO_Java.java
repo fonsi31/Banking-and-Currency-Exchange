@@ -120,7 +120,7 @@ public class MCO1_BasicIO_Java {
         System.out.println("[3] Japanese Yen (JPY): " + df.format(sourceAmount * Helpers.JPY_EXCHANGE));
         System.out.println("[4] British Pound (GBP): " + df.format(sourceAmount * Helpers.GBP_EXCHANGE));
         System.out.println("[5] Euro (EUR): " + df.format(sourceAmount * Helpers.EUR_EXCHANGE));
-        System.out.println("[6] Chinese Yuan Renminbi (CNY): " + df.format(sourceAmount * Helpers.CNY_EXCHANGE));
+        System.out.println("[6] Chinese Yuan Renminni (CNY): " + df.format(sourceAmount * Helpers.CNY_EXCHANGE));
         System.out.println();
         System.out.println("***");
         System.out.println("Source Currency = Philippine Peso (PHP)");
