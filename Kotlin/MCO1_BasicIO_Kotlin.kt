@@ -1,8 +1,8 @@
-********************
+/********************
 Last names: Baun
 Language: Kotlin
 Paradigm(s): Multi-Paradigm
-********************
+********************/
 
 val currencies = listOf(
     "Philippine Peso (PHP)",
