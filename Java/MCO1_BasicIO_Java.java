@@ -1,3 +1,9 @@
+/********************
+Last names: Marcelino
+Language: Java
+Paradigm(s): Multiparadigm (Object-Oriented, Imperative, Structured)
+********************/
+
 import java.util.Scanner; // Import Scanner class for user input
 import java.text.DecimalFormat; // Import DecimalFormat class for formatting numbers
 
@@ -10,14 +16,16 @@ public class MCO1_BasicIO_Java {
         String currentCurrency = "PHP"; // Default currency
         double depositAmount = 0.00;
         double withdrawAmount = 0.00;
-        String foreignCurrency = "";
+        String foreignCurrency = ""; // capture brackets
         double exchangeRate = 0.00;
         double sourceAmount = 0.00;
 
-        DecimalFormat df = new DecimalFormat("#,##0.00"); // Create DecimalFormat object for formatting numbers
+        DecimalFormat df = new DecimalFormat("0.00"); // Create DecimalFormat object for formatting numbers
 
         Scanner sc = new Scanner(System.in); // Initialize Scanner object to read user input
         
+        sc.useDelimiter("\\R+"); // Set delimeter to read input until a new line is encountered
+
         Helpers.printSeparator();
 
         //Display option block for user to select transaction
@@ -43,8 +51,7 @@ public class MCO1_BasicIO_Java {
         System.out.println("Register Account Name");
         System.out.print("Account Name: ");
         
-        accountName = sc.useDelimiter( "\n").next(); // Read account name with delimeter
-        accountName = accountName.trim(); // Trim whitespace from account name
+        accountName = sc.next().trim(); // read next line and trim
         
         System.out.println();
         System.out.println("***");
@@ -66,10 +73,12 @@ public class MCO1_BasicIO_Java {
         System.out.println("***");
         System.out.println("Account Name = " + accountName);
         System.out.println("Deposit Amount = " + df.format(depositAmount));
-
+    
         //Withdraw Amount
 
-        System.out.println("Deposit Amount");
+        Helpers.printSeparator();
+
+        System.out.println("Withdraw Amount");
         System.out.println("Account Name: " + accountName);
         System.out.println("Current Balance: " + df.format(currentBalance));
         System.out.println("Currency: " + currentCurrency);
