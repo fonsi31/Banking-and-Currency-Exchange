@@ -10,13 +10,25 @@ val currencies = listOf(
     "Japanese Yen (JPY)",
     "British Pound Sterling (GBP)",
     "Euro (EUR)",
-    "Chinese Yuan Renminni (CNY)"
+    "Chinese Yuan (CNY)"
 )
+
+// Exchange rates to PHP, same order as the currencies list: PHP, USD, JPY, GBP, EUR, CNY
+val exchangeRates = listOf(1.00, 62.00, 0.40, 84.00, 72.00, 9.00)
+
+
+fun readSelection(): Int = readln().trim().removeSurrounding("[", "]").toInt()
+
+// Separator printed before each module
+fun printSeparator() {
+    println("=".repeat(38))
+    println()
+}
 
 class UserChoice {
     fun displayChoice(): Int {
         print("Choice: ")
-        val number = readln().toInt()
+        val number = readSelection()
         println()
         println("***")
         println("Choice = $number")
@@ -40,8 +52,8 @@ class RegisterAccount {
 
 class Deposit {
     fun execute() {
-        val currentBalance = 1000.00   // REQ-0009 default
-        val currency = "PHP"           // REQ-0009 default
+        val currentBalance = 1000.00
+        val currency = "PHP"
 
         println("Deposit Amount")
 
@@ -65,8 +77,8 @@ class Deposit {
 
 class Withdraw {
     fun execute() {
-        val currentBalance = 1000.00   // REQ-0013 default
-        val currency = "PHP"           // REQ-0013 default
+        val currentBalance = 1000.00
+        val currency = "PHP"
 
         println("Withdraw Amount")
 
@@ -99,10 +111,16 @@ class RecordExchangeRate {
         println()
 
         print("Select Foreign Currency: ")
-        val selection = readln().toInt()
+        val selection = readSelection()
 
-        print("Exchange Rate: ")
-        val rate = readln().toDouble()
+        if (selection !in 1..currencies.size) {
+            println()
+            println("Invalid option selected.")
+            return
+        }
+
+        val rate = exchangeRates[selection - 1]
+        println("Exchange Rate: %.2f".format(rate))
 
         println()
         println("***")
@@ -112,9 +130,6 @@ class RecordExchangeRate {
 }
 
 class CurrencyExchange {
-    // Index matches the currencies list: PHP, USD, JPY, GBP, EUR, CNY
-    private val rates = listOf(1.00, 62.00, 0.40, 84.00, 72.00, 9.00)
-
     fun execute() {
         println("Foreign Currency Exchange")
 
@@ -124,7 +139,7 @@ class CurrencyExchange {
         println()
         println("Exchanged Currency")
         currencies.forEachIndexed { i, name ->
-            println("[${i + 1}] $name = %.2f".format(sourceAmount * rates[i]))
+            println("[${i + 1}] $name = %.2f".format(sourceAmount * exchangeRates[i]))
         }
 
         println()
@@ -135,6 +150,7 @@ class CurrencyExchange {
 }
 
 fun main() {
+
     println("Select Transaction:")
     println("[1] Register Account Name")
     println("[2] Deposit Amount")
@@ -144,18 +160,27 @@ fun main() {
     println("[6] Show Interest Amount")
     println()
 
-    val selection = UserChoice()
-    val choice = selection.displayChoice()
 
+    UserChoice().displayChoice()
     println()
 
-    when (choice) {
-        1 -> RegisterAccount().execute()
-        2 -> Deposit().execute()
-        3 -> Withdraw().execute()
-        4 -> CurrencyExchange().execute()
-        5 -> RecordExchangeRate().execute()
-        6 -> {}   // Show Interest Amount has no requirements in this milestone
-        else -> println("Invalid option selected.")
-    }
+
+    printSeparator()
+    RegisterAccount().execute()
+    println()
+
+    printSeparator()
+    Deposit().execute()
+    println()
+
+    printSeparator()
+    Withdraw().execute()
+    println()
+
+    printSeparator()
+    RecordExchangeRate().execute()
+    println()
+
+    printSeparator()
+    CurrencyExchange().execute()
 }
