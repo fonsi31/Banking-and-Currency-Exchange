@@ -1,15 +1,14 @@
-#import function definitions
 source("definitions.R")
 
-#default values
 current_balance <- 1000.00
 source_currency <- "PHP"
+
 exchange_rates <- list(
-    "United States Dollar (USD)" <- 62.00,
-    "Japanese Yen (JPY)" <- 0.40,
-    "British Pound Sterling (GBP)" <- 84.00,
-    "Euro (EUR)" <- 72.00,
-    "Chinese Yuan Renminni (CNY)" <- 9.00
+    "United States Dollar (USD)" = 62.00,
+    "Japanese Yen (JPY)" = 0.40,
+    "British Pound Sterling (GBP)" = 84.00,
+    "Euro (EUR)" = 72.00,
+    "Chinese Yuan Renminni (CNY)" = 9.00
 )
 
 main_menu()
