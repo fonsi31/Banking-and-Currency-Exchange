@@ -16,7 +16,7 @@ public class MCO1_BasicIO_Java {
         String currentCurrency = "PHP"; // Default currency
         double depositAmount = 0.00;
         double withdrawAmount = 0.00;
-        String foreignCurrency = ""; // capture brackets
+        int foreignCurrency = 0; // capture without brackets
         double exchangeRate = 0.00;
         double sourceAmount = 0.00;
 
@@ -62,7 +62,8 @@ public class MCO1_BasicIO_Java {
         //Deposit Amount
 
         System.out.println("Deposit Amount");
-        System.out.println("Account Name: " + accountName);
+        System.out.print("Account Name: ");
+        accountName = sc.next().trim(); // capture account name
         System.out.println("Current Balance: " + df.format(currentBalance));
         System.out.println("Currency: " + currentCurrency);
         System.out.println();
@@ -79,7 +80,8 @@ public class MCO1_BasicIO_Java {
         Helpers.printSeparator();
 
         System.out.println("Withdraw Amount");
-        System.out.println("Account Name: " + accountName);
+        System.out.print("Account Name: ");
+        accountName = sc.next().trim();
         System.out.println("Current Balance: " + df.format(currentBalance));
         System.out.println("Currency: " + currentCurrency);
         System.out.println();
@@ -100,19 +102,19 @@ public class MCO1_BasicIO_Java {
         System.out.println("[1] Philippine Peso (PHP)");
         System.out.println("[2] United States Dollar (USD)");
         System.out.println("[3] Japanese Yen (JPY)");
-        System.out.println("[4] British Pound (GBP)");
+        System.out.println("[4] British Pound Sterling (GBP)");
         System.out.println("[5] Euro (EUR)");
-        System.out.println("[6] Chinese Yean Renminni (CNY)");
+        System.out.println("[6] Chinese Yuan Renminni (CNY)");
         System.out.println();
         
         System.out.print("Select Foreign Currency: ");
-        foreignCurrency = sc.useDelimiter( "\n").next(); // Read foreign currency with delimeter
+        foreignCurrency = sc.nextInt(); // Read foreign currency number as int
         System.out.print("Exchange Rate: ");
         exchangeRate = sc.nextDouble(); // Read exchange rate as double
 
         System.out.println();
         System.out.println("***");
-        System.out.println("Foreign Currency = " + foreignCurrency);
+        System.out.println("Select Foreign Currency = [" + foreignCurrency + "]");
         System.out.println("Exchange Rate = " + df.format(exchangeRate));
 
         Helpers.printSeparator();
@@ -120,16 +122,16 @@ public class MCO1_BasicIO_Java {
         // Currency Exchange
 
         System.out.println("Foreign Currency Exchange");
-        System.out.print("Source Amount (PHP):");
+        System.out.print("Source Amount (PHP): ");
         sourceAmount = sc.nextDouble(); // Read source amount as double
         System.out.println();
         System.out.println("Exchanged Currency");
-        System.out.println("[1] Philippine Peso (PHP): " + df.format(sourceAmount));
-        System.out.println("[2] United States Dollar (USD): " + df.format(sourceAmount * Helpers.USD_EXCHANGE));
-        System.out.println("[3] Japanese Yen (JPY): " + df.format(sourceAmount * Helpers.JPY_EXCHANGE));
-        System.out.println("[4] British Pound (GBP): " + df.format(sourceAmount * Helpers.GBP_EXCHANGE));
-        System.out.println("[5] Euro (EUR): " + df.format(sourceAmount * Helpers.EUR_EXCHANGE));
-        System.out.println("[6] Chinese Yuan Renminni (CNY): " + df.format(sourceAmount * Helpers.CNY_EXCHANGE));
+        System.out.println("[1] Philippine Peso (PHP) = " + df.format(sourceAmount));
+        System.out.println("[2] United States Dollar (USD) = " + df.format(sourceAmount * Helpers.USD_EXCHANGE));
+        System.out.println("[3] Japanese Yen (JPY) = " + df.format(sourceAmount * Helpers.JPY_EXCHANGE));
+        System.out.println("[4] British Pound Sterling (GBP) = " + df.format(sourceAmount * Helpers.GBP_EXCHANGE));
+        System.out.println("[5] Euro (EUR) = " + df.format(sourceAmount * Helpers.EUR_EXCHANGE));
+        System.out.println("[6] Chinese Yuan Renminni (CNY) = " + df.format(sourceAmount * Helpers.CNY_EXCHANGE));
         System.out.println();
         System.out.println("***");
         System.out.println("Source Currency = Philippine Peso (PHP)");
