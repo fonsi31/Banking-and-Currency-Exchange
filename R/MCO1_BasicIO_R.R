@@ -1,5 +1,5 @@
 #********************
-# Last names: Cauilan
+# Last names: Cauilan, Baun, Dimakuta, Marcelino
 # Language: R
 # Paradigm(s): Functional, Object-Oriented
 #********************

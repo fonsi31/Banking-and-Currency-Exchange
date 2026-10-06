@@ -1,5 +1,5 @@
 /********************
-Last names: Marcelino
+Last names: Marcelino, Baun, Cauilan, Dimakuta, 
 Language: Java
 Paradigm(s): Multi-Paradigm (Object-Oriented, Imperative, Structured)
 ********************/

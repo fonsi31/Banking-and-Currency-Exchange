@@ -1,5 +1,5 @@
 /********************
-Last names: Baun
+Last names: Baun, Cauilan, Dimakuta, Marcelino
 Language: Kotlin
 Paradigm(s): Multi-Paradigm
 ********************/
