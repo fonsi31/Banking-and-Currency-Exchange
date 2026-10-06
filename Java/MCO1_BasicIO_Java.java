@@ -1,7 +1,7 @@
 /********************
 Last names: Marcelino
 Language: Java
-Paradigm(s): Multiparadigm (Object-Oriented, Imperative, Structured)
+Paradigm(s): Multi-Paradigm (Object-Oriented, Imperative, Structured)
 ********************/
 
 import java.util.Scanner; // Import Scanner class for user input
