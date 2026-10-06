@@ -1,3 +1,9 @@
+#********************
+# Last names: Cauilan
+# Language: R
+# Paradigm(s): Functional, Object-Oriented
+#********************
+
 source("definitions.R")
 
 current_balance <- 1000.00
