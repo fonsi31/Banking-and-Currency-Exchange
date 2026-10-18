@@ -9,17 +9,50 @@ source("definitions.R")
 current_balance <- 1000.00
 source_currency <- "PHP"
 
-exchange_rates <- list(
-    "United States Dollar (USD)" = 62.00,
-    "Japanese Yen (JPY)" = 0.40,
-    "British Pound Sterling (GBP)" = 84.00,
-    "Euro (EUR)" = 72.00,
-    "Chinese Yuan Renminni (CNY)" = 9.00
+#source: php (last updated: oct 13, 2026)
+exchange_rates <- c(
+    "Philippine Peso (PHP)" = 1,
+    "United States Dollar (USD)" = 0.016,
+    "Japanese Yen (JPY)" = 2.52,
+    "British Pound Sterling (GBP)" = 0.012,
+    "Euro (EUR)" = 0.014,
+    "Chinese Yuan Renminni (CNY)" = 0.11
 )
 
-main_menu()
-register()
-deposit(current_balance, source_currency)
-withdraw(current_balance, source_currency)
-record_exchange_rate(exchange_rates)
-currency_exchange(exchange_rates)
+#registered accounts
+accounts <- load_accounts()
+
+cat("Accounts Returned:\n")
+for (account in names(accounts)){
+    cat(sprintf("%s\n", account))
+}
+readline("Please Enter to continue...")
+
+while (TRUE) {
+    cat("\014") #clears terminal
+    main_menu()
+    choice <- readline("choice: ")
+
+    #checks if the user inputs a valid int
+    if (!grepl("^-?[0-9]+$", choice) ||
+    as.integer(choice) < 1 || as.integer(choice) > 7) {
+        cat("Invalid Input!")
+        readline("Press Enter to continue...")
+        next
+    }
+
+    choice <- as.integer(choice)
+    #user exits
+    if (choice == 7) {
+        break
+    }
+
+    switch(choice,
+        accounts <- register(accounts),
+        accounts <- deposit(accounts),
+        accounts <- withdraw(accounts),
+        currency_exchange(exchange_rates),
+        exchange_rates <- record_exchange_rate(exchange_rates),
+        show_interest_amt(accounts),
+    )
+}
