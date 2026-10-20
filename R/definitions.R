@@ -53,14 +53,28 @@ update_accounts <- function(accounts) {
     })
 }
 
+display_currency_exchange <- function(exchange_rates) {
+    n <- length(exchange_rates)
+    cat("PHP Exchange Rates Table\n")
+    cat("-----------------------------------------------------------\n")
+    cat(sprintf("%-30s| %-5.2f %-4s| inv. %-5.2f %-4s\n", names(exchange_rates)[1],
+    1, "PHP", 1, "PHP"))
+    for (i in 2:n){
+        inv <- convert_currency(1, i, 1, exchange_rates)
+        cat(sprintf("%-30s| %-10.3f| %-10.3f\n", names(exchange_rates)[i],
+        exchange_rates[[i]], inv))
+    }
+    cat("\n")
+}
+  
 #returns the converted currency
 convert_currency <- function(amount, from, to, exchange_rates){
-    #convert amount to php # nolint: indentation_linter.
+    #convert amount to php
     #if from == php (index 1) this stays unchanged
-    to_php <- amount / exchange_rates[from]
+    to_php <- amount / exchange_rates[[from]]
     
     if (to != 1) {
-        return(to_php * exchange_rates[from])
+        return(to_php * exchange_rates[[to]])
     }
 
     return(to_php)
@@ -217,6 +231,7 @@ withdraw <- function(accounts){
 currency_exchange <- function(exchange_rates){
     while(TRUE) {
         cat("\014")
+        display_currency_exchange(exchange_rates)
         cat("Foreign Currency Exchange\n")
 
         i <- 1
@@ -236,7 +251,7 @@ currency_exchange <- function(exchange_rates){
         || as.integer(from) < 1 || as.integer(from) > num_of_currs ||
         as.integer(to) < 1 || as.integer(to) > num_of_currs ||
         is.na(source_amt)) {
-            cat("Invalid Input!")
+            cat("Invalid Input!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
                 break
@@ -247,7 +262,7 @@ currency_exchange <- function(exchange_rates){
         from <- as.integer(from)
         to <- as.integer(to)
         converted_amt <- convert_currency(source_amt, from, to, exchange_rates)
-        cat("Exchange Amount:", converted_amt, "\n")
+        cat(sprintf("Exchange Amount: %.2f\n", converted_amt))
         cat("\n")
         choice <- readline("Convert another currency (Y/N)? ... ")
         if (tolower(choice) == "n") {
@@ -261,13 +276,14 @@ currency_exchange <- function(exchange_rates){
 record_exchange_rate <- function(exchange_rates){
     while (TRUE) {
         cat("\014")
+        display_currency_exchange(exchange_rates)
         cat("Record Exchange Rate\n")
         cat("Note: this is measured against PHP\n")
         cat("\n")
 
         num_of_currs <- length(exchange_rates)
         for (i in 2:num_of_currs){
-            cat(sprintf("[%d] %s"), i - 1, names(exchange_rates)[[i]])
+            cat(sprintf("[%d] %s\n", i - 1, names(exchange_rates)[i]))
         }
         cat("\n") 
 
@@ -295,7 +311,7 @@ record_exchange_rate <- function(exchange_rates){
         i = as.integer(foreign_currency) + 1 #index of the selected currency
         exchange_rates[i] <- new_exchange_rate
 
-        cat("New exchange rate set for:", names(exchange_rates)[i])
+        cat("New exchange rate set for", names(exchange_rates)[i], "\n")
 
         choice <- readline("Go Back to the Main Menu (Y/N)? ... ")
         if (tolower(choice) == "y"){
@@ -306,7 +322,7 @@ record_exchange_rate <- function(exchange_rates){
     return(exchange_rates)
 }
 
-#show how the balance of a user changes daily accounting the interest
+#show how the balance of a user changes daily accounting the annual interest
 show_interest_amt <- function(accounts){
     while(TRUE){
         cat("\014")

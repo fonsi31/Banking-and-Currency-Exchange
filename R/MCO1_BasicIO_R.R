@@ -6,9 +6,6 @@
 
 source("definitions.R")
 
-current_balance <- 1000.00
-source_currency <- "PHP"
-
 #source: php (last updated: oct 13, 2026)
 exchange_rates <- c(
     "Philippine Peso (PHP)" = 1,
@@ -19,9 +16,10 @@ exchange_rates <- c(
     "Chinese Yuan Renminni (CNY)" = 0.11
 )
 
-#registered accounts
+#registered accounts will be stored here upon runtime
 accounts <- load_accounts()
 
+#for debugging purposes
 cat("Accounts Returned:\n")
 for (account in names(accounts)){
     cat(sprintf("%s\n", account))
@@ -33,7 +31,7 @@ while (TRUE) {
     main_menu()
     choice <- readline("choice: ")
 
-    #checks if the user inputs a valid int
+    #checks if the user inputs a valid int or if it is within range
     if (!grepl("^-?[0-9]+$", choice) ||
     as.integer(choice) < 1 || as.integer(choice) > 7) {
         cat("Invalid Input!")
