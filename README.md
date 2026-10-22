@@ -10,24 +10,31 @@ A CLI banking and currency application programmed in C, Java, Kotlin, and R.
 - Manually set the exchange rate of a currency against PHP.
 - Displays projected daily balances and interest for a user-specified number of days.
 
-# R requirements and Setup
+### R requirements and Setup
 
 - Version: R 4.6.1
 - IDE: VsCode
 - Extension: R extensions for VsCode
 
-## How to run
+### How to run
 
 1. Clone the repo
-2. Open a terminal
-3. navigate to the project folder
+   
+3. Open a terminal
+  
+4. navigate to the project folder
 
 ```bash
 cd Banking and Currency Exchange\R
 ```
 
-4. Run the program
+4. Activate interactive R console
 
 ```bash
-Rscript main.R
+R
+```
+
+5. Run the program
+```bash
+source("main.r")
 ```
