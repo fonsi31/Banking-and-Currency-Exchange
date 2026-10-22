@@ -17,7 +17,7 @@ A CLI banking and currency application programmed in C, Java, Kotlin, and R.
 - Extension: R by REditorSupport
 - Dependency: jsonlite package
 
-### How to run
+#### How to run
 
 1. Clone the repo
    
@@ -40,7 +40,7 @@ R
 source("main.R")
 ```
 
-### Package Installation
+#### Package Installation
 
 If jsonlite isn't installed, run the following command in R:
 
