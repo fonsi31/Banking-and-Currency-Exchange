@@ -36,5 +36,5 @@ R
 
 5. Run the program
 ```bash
-source("main.r")
+source("main.R")
 ```
