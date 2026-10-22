@@ -1,7 +1,6 @@
 *.txt
 *.csv
 *.json
-*.pdf
 Java/Main.class
 Java/Helpers.class
 Java/MCO1_BasicIO_Java.class

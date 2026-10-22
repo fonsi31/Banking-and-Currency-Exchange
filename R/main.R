@@ -6,7 +6,12 @@
 
 source("definitions.R")
 
+#******************************************************************
 #source: php (last updated: oct 13, 2026)
+#Exchange rates are stored in a numeric vector resembling a hashmap
+#Why numeric vector instead of a list?
+#because all values are of the same data type
+#******************************************************************
 exchange_rates <- c(
     "Philippine Peso (PHP)" = 1,
     "United States Dollar (USD)" = 0.016,
@@ -16,35 +21,33 @@ exchange_rates <- c(
     "Chinese Yuan Renminni (CNY)" = 0.11
 )
 
-#registered accounts will be stored here upon runtime
+# registered accounts will be stored here upon runtime
 accounts <- load_accounts()
 
-#for debugging purposes
-cat("Accounts Returned:\n")
-for (account in names(accounts)){
-    cat(sprintf("%s\n", account))
-}
-readline("Please Enter to continue...")
+# Main program loop
+# Repeats until the user selects option 7 (Exit)
 
 while (TRUE) {
     cat("\014") #clears terminal
-    main_menu()
-    choice <- readline("choice: ")
+    main_menu() #displays main menu
+    choice <- readline("choice: ") #gets user input
 
-    #checks if the user inputs a valid int or if it is within range
+    #checks if the user inputs a valid int and if it is within range
     if (!grepl("^-?[0-9]+$", choice) ||
     as.integer(choice) < 1 || as.integer(choice) > 7) {
-        cat("Invalid Input!")
+        cat("Invalid Input!\n")
         readline("Press Enter to continue...")
         next
     }
 
-    choice <- as.integer(choice)
+    choice <- as.integer(choice) #parse choice to integer
+
     #user exits
     if (choice == 7) {
         break
     }
 
+    #switch case
     switch(choice,
         accounts <- register(accounts),
         accounts <- deposit(accounts),

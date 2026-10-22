@@ -1,4 +1,4 @@
-# displays the main menu
+# Displays the main menu
 main_menu <- function() {
     cat(
         "Select Transaction:\n",
@@ -13,17 +13,14 @@ main_menu <- function() {
     )
 }
 
-#loads the account from the database to the program's account holder upon runtime
+# reads and loads the account records from the database
+#
+# Returns: The registered accounts stored in a nested list
 load_accounts <- function() {
     tryCatch({
-        accounts <- jsonlite::fromJSON("registered_accounts.json", simplifyVector = FALSE)
-        
-        cat("Accounts Loaded:\n")
-        for (account in names(accounts)){
-            cat(sprintf("%s\n", account))
-        }
-        readline("Please Enter to continue...")
-
+        accounts <- jsonlite::fromJSON("registered_accounts.json",
+        simplifyVector = FALSE)
+   
         if (!is.list(accounts)){
             return(list())
         }
@@ -42,10 +39,15 @@ load_accounts <- function() {
     })
 }
 
-#updates the account database everytime a change in accounts occur
+# Updates the accounts database
+#
+# Parameters:
+# - accounts: the list of registered accounts
+
 update_accounts <- function(accounts) {
     tryCatch({
-        jsonlite::write_json(accounts, "registered_accounts.json", auto_unbox=TRUE, pretty=TRUE)
+        jsonlite::write_json(accounts, "registered_accounts.json",
+        auto_unbox=TRUE, pretty=TRUE)
         TRUE
     }, error = function(e) {
         cat("Failed to save account: ", conditionMessage(e), "\n")
@@ -53,6 +55,11 @@ update_accounts <- function(accounts) {
     })
 }
 
+# Displays the currency exchange records against php
+#
+# Parameters:
+# - exchange_rates: Numeric vector containing exchange rates
+#   relative to PHP
 display_currency_exchange <- function(exchange_rates) {
     n <- length(exchange_rates)
     cat("PHP Exchange Rates Table\n")
@@ -67,7 +74,16 @@ display_currency_exchange <- function(exchange_rates) {
     cat("\n")
 }
   
-#returns the converted currency
+# Converts between any supported currencies
+#
+# Parameters:
+# - amount: Amount in source currency
+# - from: Index of the source currency in the exchange rates
+# - to: Index of the target currency in the exchange rates
+# - exchange_rates: Numeric vector containing exchange rates
+#   relative to PHP
+#
+# Returns: The amount expressed in the target currency
 convert_currency <- function(amount, from, to, exchange_rates){
     #convert amount to php
     #if from == php (index 1) this stays unchanged
@@ -80,7 +96,12 @@ convert_currency <- function(amount, from, to, exchange_rates){
     return(to_php)
 }
 
-#registers a new account
+# Registers an account
+#
+# Parameters:
+# - accounts: list of registered accounts
+#
+# Returns: The new updated list of accounts
 register <- function(accounts) {
     while(TRUE){
         cat("\014")
@@ -114,7 +135,12 @@ register <- function(accounts) {
     return(accounts)
 }
 
-#deposits an amount to an account
+# Deposits an amount to an account
+#
+# Parameters:
+# - accounts: list of registered accounts
+#
+# Returns: The new updated list of accounts
 deposit <- function(accounts){
     while(TRUE){
         cat("\014")
@@ -139,8 +165,8 @@ deposit <- function(accounts){
 
         deposit_amt <- as.numeric(readline("Deposit Amount: "))
 
-        if(is.na(deposit_amt)){
-            cat("Invalid Input!")
+        if(is.na(deposit_amt) || deposit_amt < 0){
+            cat("Invalid Input!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
                 break
@@ -165,7 +191,12 @@ deposit <- function(accounts){
     return(accounts)
 }
 
-#withdraws an amount from an account
+# Withdraws an amount from an account
+#
+# Parameters:
+# - accounts: list of registered accounts
+#
+# Returns: The new updated list of accounts
 withdraw <- function(accounts){
     while(TRUE){
         cat("\014")
@@ -184,14 +215,14 @@ withdraw <- function(accounts){
 
         current_balance <- accounts[[account_name]]$balance
 
-        cat(sprintf("Current Balance: %.2f", current_balance))
+        cat(sprintf("Current Balance: %.2f\n", current_balance))
         cat("Currency: PHP\n")
         cat("\n")
 
         withdraw_amt <- as.numeric(readline("Withdraw Amount: "))
 
         #input validation
-        if(is.na(withdraw_amt)){
+        if(is.na(withdraw_amt) || withdraw_amt < 0){
             cat("Invalid Input!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y"){
@@ -202,7 +233,7 @@ withdraw <- function(accounts){
 
         #checks if current balance can handle withdraw amount
         if(withdraw_amt > current_balance){
-            cat("Insuffecient Balance!\n")
+            cat("Insufficient Balance!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y"){
                 break
@@ -227,7 +258,11 @@ withdraw <- function(accounts){
     return(accounts)
 }
 
-#allows a user to convert any provided currency to any provided currency
+# Allows a user to view the equivalent amount of one currency to another
+#
+# Parameters:
+# - exchange_rates: Numeric vector containing exchange rates
+#   relative to PHP
 currency_exchange <- function(exchange_rates){
     while(TRUE) {
         cat("\014")
@@ -272,7 +307,14 @@ currency_exchange <- function(exchange_rates){
     }
 }
 
-#allows a user to set the exchange rate of a foreign currency against PHP
+# Manually sets the exchange rate of
+# any supported currency relative to PHP
+#
+# Parameters:
+# - exchange_rates: Numeric vector containing exchange rates
+#   relative to PHP
+#
+# Returns: The new updated exchange rates
 record_exchange_rate <- function(exchange_rates){
     while (TRUE) {
         cat("\014")
@@ -322,12 +364,19 @@ record_exchange_rate <- function(exchange_rates){
     return(exchange_rates)
 }
 
-#show how the balance of a user changes daily accounting the annual interest
+# Displays projected balances and interest for a user-specified
+# number of days
+#
+# Parameters:
+# - accounts: List of registered accounts
 show_interest_amt <- function(accounts){
     while(TRUE){
         cat("\014")
         cat("Show Interest Amount\n")
+
         account_name <- readline("Account Name: ")
+
+        #checks if an account exists in the registered accounts
         if (!(account_name %in% names(accounts))) {
             cat("Account not found!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
@@ -346,6 +395,7 @@ show_interest_amt <- function(accounts){
         cat("\n")
         days <- readline("Total Number of Days: ")
         
+        #input validation for number of days
         if(!grepl("^-?[0-9]+$", days)) {
             cat("Invalid Input!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
@@ -355,6 +405,17 @@ show_interest_amt <- function(accounts){
             next
         }
         days <- as.integer(days)
+        
+        #input validation for number of days
+        if(days < 1){
+            cat("Invalid Input!\n")
+            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            if (tolower(choice) == "y") {
+                break
+            }
+            next
+        }
+
         cat("\n")
 
         cat(sprintf("%-4s| %-9s| %-10s|\n", "Day", "Interest", "Balance"))
@@ -363,6 +424,8 @@ show_interest_amt <- function(accounts){
             current_bal <- current_bal + daily_interest
             cat(sprintf("%-4d| %-9.2f| %-10.2f|\n", i, daily_interest, current_bal))
         }
+
+        cat("\n")
 
         choice <- readline("Back to the Main Menu (Y/N)? ... ")
         if (tolower(choice) == "y") {
