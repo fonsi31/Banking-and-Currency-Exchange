@@ -13,8 +13,9 @@ A CLI banking and currency application programmed in C, Java, Kotlin, and R.
 ### R requirements and Setup
 
 - Version: R 4.6.1
-- IDE: VsCode
-- Extension: R extensions for VsCode
+- IDE: Visual Studio Code
+- Extension: R by REditorSupport
+- Dependency: jsonlite package
 
 ### How to run
 
@@ -37,4 +38,12 @@ R
 5. Run the program
 ```bash
 source("main.R")
+```
+
+### Package Installation
+
+If jsonlite isn't installed, run the following command in R:
+
+```bash
+install.packages("jsonlite")
 ```
