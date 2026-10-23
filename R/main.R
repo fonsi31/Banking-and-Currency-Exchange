@@ -41,7 +41,6 @@ while (TRUE) {
     }
 
     choice <- as.integer(choice) #parse choice to integer
-
     #user exits
     if (choice == 7) {
         break
