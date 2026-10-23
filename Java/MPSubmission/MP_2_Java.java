@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
-public class MP_11_Java 
+public class MP_2_Java 
 {
     private static Scanner INPUT = new Scanner(System.in);
     private static final int MAX_DAYS = 10000; //Arbitrary hard limit for number of days in interest.
