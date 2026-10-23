@@ -297,7 +297,7 @@ currency_exchange <- function(exchange_rates){
         from <- as.integer(from)
         to <- as.integer(to)
         converted_amt <- convert_currency(source_amt, from, to, exchange_rates)
-        cat(sprintf("Exchange Amount: %.2f\n", converted_amt))
+        cat(sprintf("Exchange Amount: %.3f\n", converted_amt))
         cat("\n")
         choice <- readline("Convert another currency (Y/N)? ... ")
         if (tolower(choice) == "n") {
