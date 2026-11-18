@@ -26,7 +26,6 @@ accounts <- load_accounts()
 
 # Main program loop
 # Repeats until the user selects option 7 (Exit)
-
 while (TRUE) {
     cat("\014") #clears terminal
     main_menu() #displays main menu
