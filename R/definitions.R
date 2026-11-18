@@ -118,7 +118,7 @@ register <- function(accounts) {
             next
         }
 
-        accounts[[account_name]]$balance <- 0.0
+        accounts[[account_name]]$balance <- 1000.0 # opening balance (PHP), same as the Java, Kotlin and C versions
         update_accounts(accounts)
 
         cat("Account Created Successfuly!\n")
