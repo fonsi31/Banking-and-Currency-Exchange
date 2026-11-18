@@ -159,7 +159,7 @@ deposit <- function(accounts){
 
         current_balance <- accounts[[account_name]]$balance
 
-        cat("Current Balance:", current_balance, "\n")
+        cat(sprintf("Current Balance: %.2f\n", current_balance))
         cat("Currency: PHP\n")
         cat("\n")
 
@@ -177,7 +177,7 @@ deposit <- function(accounts){
         #update balance
         accounts[[account_name]]$balance <- current_balance + deposit_amt
         
-        cat("Updated Balance:", accounts[[account_name]]$balance, "\n")
+        cat(sprintf("Updated Balance: %.2f\n", accounts[[account_name]]$balance))
         cat("\n")
 
         choice <- readline("Back to the Main Menu (Y/N)? ... ")
