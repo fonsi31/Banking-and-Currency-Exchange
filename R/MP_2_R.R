@@ -22,10 +22,11 @@ exchange_rates <- c(
 )
 
 # registered accounts will be stored here upon runtime
-accounts <- load_accounts()
+transactions <- load_transactions("../bank_transactions.csv")
+print(head(transactions))
 
 # Main program loop
-# Repeats until the user selects option 7 (Exit)
+# Repeats until the user selects option 8 (Exit)
 while (TRUE) {
     cat("\014") #clears terminal
     main_menu() #displays main menu
@@ -33,7 +34,7 @@ while (TRUE) {
 
     #checks if the user inputs a valid int and if it is within range
     if (!grepl("^-?[0-9]+$", choice) ||
-    as.integer(choice) < 1 || as.integer(choice) > 7) {
+    as.integer(choice) < 1 || as.integer(choice) > 8) {
         cat("Invalid Input!\n")
         readline("Press Enter to continue...")
         next
@@ -41,7 +42,7 @@ while (TRUE) {
 
     choice <- as.integer(choice) #parse choice to integer
     #user exits
-    if (choice == 7) {
+    if (choice == 8) {
         break
     }
 

@@ -8,35 +8,44 @@ main_menu <- function() {
         "[4] Currency Exchange\n",
         "[5] Record Exchange Rates\n",
         "[6] Show Interest Amount\n",
-        "[7] Exit\n",
+        "[7] Generate Reports\n",
+        "[8] Exit\n",
         sep = ""
     )
 }
 
 # reads and loads the account records from the database
 #
-# Returns: The registered accounts stored in a nested list
-load_accounts <- function() {
-    tryCatch({
-        accounts <- jsonlite::fromJSON("registered_accounts.json",
-        simplifyVector = FALSE)
-   
-        if (!is.list(accounts)){
-            return(list())
-        }
+# Returns: The registered accounts stored in a data frame (table)
+load_transactions <- function(path) {
+    transactions <- read.csv(path, colClasses = "character", strip.white = TRUE)
+    rows_loaded <- nrow(transactions)
 
-        for (name in names(accounts)){
-            account <- accounts[[name]]
+    transactions$amount <- suppressWarnings(as.numeric(transactions$amount))
+    transactions$current_balance <- suppressWarnings(as.numeric(transactions$current_balance))
 
-            if (!is.list(account) || is.null(account) || !is.numeric(account$balance)) {
-                return(list())
-            }
-        }
+    date_and_time <- paste(transactions$date, transactions$time)
+    transactions$datetime <- as.POSIXct(date_and_time, format = "%d/%m/%Y %H:%M:%S", tz = "UTC")
+    transactions$date <- as.Date(transactions$date, format = "%d/%m/%Y")
 
-        return(accounts)
-    }, error = function(e) {
-        return(list())
-    })
+    is_bad <-   is.na(transactions$datetime) |
+                is.na(transactions$amount) |
+                is.na(transactions$current_balance) |
+                !grepl("^[0-9]{10}$", transactions$account_number) |
+                !(transactions$type %in% c("deposit", "withdrawal"))
+
+    invalid_rows <- sum(is_bad)
+    transactions <- transactions[!is_bad, ]
+
+    transactions <- transactions[transactions$currency %in% "PHP", ]
+
+    cat("Processing dataset... (",
+        format(rows_loaded, big.mark = ","), " rows loaded, ",
+        format(nrow(transactions), big.mark = ","), " filtered for PHP currency, ",
+        format(invalid_rows, big.mark = ","), " invalid rows removed)\n",
+        sep = "")
+
+    transactions[order(transactions$datetime), ]
 }
 
 # Updates the accounts database
@@ -118,7 +127,7 @@ register <- function(accounts) {
             next
         }
 
-        accounts[[account_name]]$balance <- 1000.0 # opening balance (PHP), same as the Java, Kotlin and C versions
+        accounts[[account_name]]$balance <- 5000.0 # opening balance (PHP), same as the Java, Kotlin and C versions
         update_accounts(accounts)
 
         cat("Account Created Successfuly!\n")
@@ -433,3 +442,4 @@ show_interest_amt <- function(accounts){
         }
     }
 }
+
