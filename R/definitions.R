@@ -212,60 +212,68 @@ register <- function(transactions) {
     transactions
 }
 
+account_exists <- function(transactions, accno) {
+    grepl("^[0-9]{10}$") && accno %in% transactions$account_number
+}
+
+get_current_balance <- function(transactions, accno) {
+    account_rows <- transactions[transactions$account_number == accno, ]
+    tail(account_rows$current_balance, 1)
+}
+
+get_account_name <- function(transactions, accno) {
+    account_rows <- transactions[transactions$account_number == accno, ]
+    tail(account_rows$account_name, 1)
+}
+
 # Deposits an amount to an account
 #
 # Parameters:
 # - accounts: list of registered accounts
 #
 # Returns: The new updated list of accounts
-deposit <- function(transactions){
-    while(TRUE){
+deposit <- function(transactions) {
+    while (TRUE) {
         cat("\014")
         cat("Deposit Amount\n")
-        account_name <- readline("Account Number: ")
+        accno <- readline("Account Number: ")
 
-        #checks if account number exists
-        if(!(account_name %in% names(accounts))) {
-            cat("Account not found!\n")
+        #checks if account number doesn't exists
+        if (!account_exists(transactions, accno)) {
+            cat("Account doesn't exists!")
+
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
-            if (tolower(choice) == "y"){
-                break
-            }
-            next
-        }
 
-        current_balance <- accounts[[account_name]]$balance
-
-        cat(sprintf("Current Balance: %.2f\n", current_balance))
-        cat("Currency: PHP\n")
-        cat("\n")
-
-        deposit_amt <- as.numeric(readline("Deposit Amount: "))
-
-        if(is.na(deposit_amt) || deposit_amt < 0){
-            cat("Invalid Input!\n")
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
                 break
             }
             next
         }
 
-        #update balance
-        accounts[[account_name]]$balance <- current_balance + deposit_amt
+        current_balance <- get_current_balance(transactions, accno)
+
+        cat(sprintf("Current Balance: %.2f\n", current_balance))
+        cat("Currency: PHP\n")
+        cat("\n")
+
+        deposit_amt <- read_amount("Enter amount to deposit: ")
+        account_name <- get_account_name(transactions, accno)
+        new_balance <- current_balance + deposit_amt
+
+        transactions <- save_transactions(transactions, account_name, accno, 
+                    deposit_amt, "deposit", new_balance)
         
-        cat(sprintf("Updated Balance: %.2f\n", accounts[[account_name]]$balance))
+        cat(sprintf("Updated Balance: %.2f\n", new_balance))
         cat("\n")
 
         choice <- readline("Back to the Main Menu (Y/N)? ... ")
 
-        if (tolower(choice) == "y"){
+        if (tolower(choice) == "y") {
             break
         }
     }
 
-    update_accounts(accounts)
-    return(accounts)
+    transactions
 }
 
 # Withdraws an amount from an account
@@ -274,54 +282,49 @@ deposit <- function(transactions){
 # - accounts: list of registered accounts
 #
 # Returns: The new updated list of accounts
-withdraw <- function(accounts){
+withdraw <- function(transactions){
     while(TRUE){
         cat("\014")
         cat("Withdraw Amount\n")
-        account_name <- readline("Account Name: ")
+        accno <- readline("Account Number: ")
 
-        #checks if account name exists
-        if(!(account_name %in% names(accounts))){
-            cat("Account not found!\n")
+        #checks if account number doesn't exists
+        if (!account_exists(transactions, accno)) {
+            cat("Account doesn't exists!")
+
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
-            if (tolower(choice) == "y"){
+
+            if (tolower(choice) == "y") {
                 break
             }
             next
         }
 
-        current_balance <- accounts[[account_name]]$balance
+        current_balance <- get_current_balance(transactions, accno)
 
         cat(sprintf("Current Balance: %.2f\n", current_balance))
         cat("Currency: PHP\n")
         cat("\n")
 
-        withdraw_amt <- as.numeric(readline("Withdraw Amount: "))
-
-        #input validation
-        if(is.na(withdraw_amt) || withdraw_amt < 0){
-            cat("Invalid Input!\n")
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
-            if (tolower(choice) == "y"){
-                break
-            }
-            next
-        }
+        withdraw_amt <- read_amount()
 
         #checks if current balance can handle withdraw amount
-        if(withdraw_amt > current_balance){
+        if (withdraw_amt > current_balance) {
             cat("Insufficient Balance!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
-            if (tolower(choice) == "y"){
+            if (tolower(choice) == "y") {
                 break
             }
             next
         }
 
-        #update balance
-        accounts[[account_name]]$balance <- current_balance - withdraw_amt
+        account_name <- get_account_name(transactions, accno)
+        new_balance <- current_balance - withdraw_amt
 
-        cat(sprintf("Updated Balance: %.2f", accounts[[account_name]]$balance))
+        transactions <- save_transactions(transactions, account_name, accno, 
+                    withdraw_amt, "deposit", new_balance)
+
+        cat(sprintf("Updated Balance: %.2f", new_balance))
         cat("\n")
 
         choice <- readline("Back to the Main Menu (Y/N)? ... ")
@@ -331,8 +334,7 @@ withdraw <- function(accounts){
         }
     }
 
-    update_accounts(accounts)
-    return(accounts)
+    transactions
 }
 
 # Allows a user to view the equivalent amount of one currency to another
@@ -340,7 +342,7 @@ withdraw <- function(accounts){
 # Parameters:
 # - exchange_rates: Numeric vector containing exchange rates
 #   relative to PHP
-currency_exchange <- function(exchange_rates){
+currency_exchange <- function(exchange_rates) {
     while(TRUE) {
         cat("\014")
         display_currency_exchange(exchange_rates)
