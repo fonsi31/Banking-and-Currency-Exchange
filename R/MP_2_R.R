@@ -48,9 +48,9 @@ while (TRUE) {
 
     #switch case
     switch(choice,
-        accounts <- register(accounts),
-        accounts <- deposit(accounts),
-        accounts <- withdraw(accounts),
+        transactions <- register(accounts),
+        transactions <- deposit(accounts),
+        transactions <- withdraw(accounts),
         currency_exchange(exchange_rates),
         exchange_rates <- record_exchange_rate(exchange_rates),
         show_interest_amt(accounts),

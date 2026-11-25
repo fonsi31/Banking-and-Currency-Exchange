@@ -48,20 +48,44 @@ load_transactions <- function(path) {
     transactions[order(transactions$datetime), ]
 }
 
-# Updates the accounts database
+# Updates the transactions database
 #
 # Parameters:
-# - accounts: the list of registered accounts
+# - transactions: data frame (1 row corresponds to one transaction)
+save_transactions <- function(transactions, account_name, account_number,
+                        amount, type, new_balance, path = "../bank_transactions.csv") {
+    now <- Sys.time()
 
-update_accounts <- function(accounts) {
-    tryCatch({
-        jsonlite::write_json(accounts, "registered_accounts.json",
-        auto_unbox=TRUE, pretty=TRUE)
-        TRUE
-    }, error = function(e) {
-        cat("Failed to save account: ", conditionMessage(e), "\n")
-        FALSE
-    })
+    file_row <- data.frame(
+        account_name = account_name,
+        account_number = account_number,
+        date = format(now, "%d/%m/%Y"),
+        time = format(now, "%H:%M:%S"),
+        currency = "PHP",
+        amount = sprintf("%.2f", amount),
+        type = type,
+        current_balance = sprintf("%.2f", new_balance)
+    )
+
+    #append it to the end of the file
+    write.table(file_row, path, sep = ",", append = TRUE,
+                col.names = FALSE, row.names = FALSE, quote = FALSE)
+
+    #add the same row to the data frame in memory (program transactions)
+    memory_row <- data.frame(
+        account_name = account_name,
+        account_number = account_number,
+        date = as.Date(file_row$date),
+        time = file_row$time,
+        currency = "PHP",
+        amount = round(amount, 2),
+        type = type,
+        current_balance = round(new_balance, 2),
+        datetime = as.POSIXct(paste(file_row$date, file_row$time),
+                 format = "%d/%m/%Y %H:%M:%S", tz = "UTC")
+    )
+
+    rbind(transactions, memory_row)
 }
 
 # Displays the currency exchange records against php
