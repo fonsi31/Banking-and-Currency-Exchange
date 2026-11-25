@@ -24,8 +24,6 @@ exchange_rates <- c(
 # registered accounts will be stored here upon runtime
 transactions <- load_transactions("../bank_transactions.csv")
 
-register(transactions)
-
 # Main program loop
 # Repeats until the user selects option 8 (Exit)
 while (TRUE) {

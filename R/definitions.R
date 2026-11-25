@@ -2,7 +2,7 @@
 main_menu <- function() {
     cat(
         "Select Transaction:\n",
-        "[1] Register Account Name\n",
+        "[1] Register Account\n",
         "[2] Deposit Amount\n",
         "[3] Withdraw Amount\n",
         "[4] Currency Exchange\n",
@@ -213,7 +213,7 @@ register <- function(transactions) {
 }
 
 account_exists <- function(transactions, accno) {
-    grepl("^[0-9]{10}$") && accno %in% transactions$account_number
+    grepl("^[0-9]{10}$", accno) && accno %in% transactions$account_number
 }
 
 get_current_balance <- function(transactions, accno) {
@@ -447,16 +447,16 @@ record_exchange_rate <- function(exchange_rates){
 # number of days
 #
 # Parameters:
-# - accounts: List of registered accounts
-show_interest_amt <- function(accounts){
-    while(TRUE){
+# - transactions: rows of all transactions made
+show_interest_amt <- function(transactions) {
+    while (TRUE) {
         cat("\014")
         cat("Show Interest Amount\n")
 
-        account_name <- readline("Account Name: ")
+        accno <- readline("Account Number: ")
 
         #checks if an account exists in the registered accounts
-        if (!(account_name %in% names(accounts))) {
+        if (!account_exists(transactions, accno)) {
             cat("Account not found!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
@@ -467,7 +467,7 @@ show_interest_amt <- function(accounts){
 
         interest_rate <- 0.05
 
-        current_bal <- accounts[[account_name]]$balance
+        current_bal <- get_current_balance(transactions, accno)
         cat(sprintf("Current Balance: %.2f\n", current_bal))
         cat("Currency: PHP\n")
         cat("Interest Rate: 5%\n")
@@ -475,7 +475,7 @@ show_interest_amt <- function(accounts){
         days <- readline("Total Number of Days: ")
         
         #input validation for number of days
-        if(!grepl("^-?[0-9]+$", days)) {
+        if (!grepl("^-?[0-9]+$", days)) {
             cat("Invalid Input!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
@@ -486,7 +486,7 @@ show_interest_amt <- function(accounts){
         days <- as.integer(days)
         
         #input validation for number of days
-        if(days < 1){
+        if (days < 1) {
             cat("Invalid Input!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
@@ -512,4 +512,3 @@ show_interest_amt <- function(accounts){
         }
     }
 }
-
