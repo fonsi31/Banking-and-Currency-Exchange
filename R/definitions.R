@@ -75,7 +75,7 @@ save_transactions <- function(transactions, account_name, account_number,
     memory_row <- data.frame(
         account_name = account_name,
         account_number = account_number,
-        date = as.Date(file_row$date),
+        date = as.Date(file_row$date, format = "%d/%m/%Y"),
         time = file_row$time,
         currency = "PHP",
         amount = round(amount, 2),
@@ -129,43 +129,87 @@ convert_currency <- function(amount, from, to, exchange_rates){
     return(to_php)
 }
 
+is_valid_name <- function(name){
+    grepl("^[A-Za-z][A-Za-z.'-]*( [A-Za-z][A-Za-z.'-]*)+$", name)
+}
+
+# Generates an account number for a new registration
+next_account_number <- function(transactions) {
+    numbers <- as.numeric(transactions$account_number)
+
+    if (length(numbers) == 0) {
+        return("1092000001")
+    }
+    
+    sprintf("%.0f", max(numbers) + 1)
+}
+
+read_amount <- function(prompt, minimum = 0.01) {
+    repeat {
+        input <- trimws(readline(prompt))
+
+        if (grepl("^[0-9]+(\\.[0-9]{1,2})?$", input)) {
+            amount <- as.numeric(input)
+            if (amount >= minimum) return(amount)
+        }
+
+        cat(sprintf("Invalid amount. Enter a number of at least %s with up to 2 decimals.\n",
+                formatC(minimum, format = "f", digits = 2, big.mark = ",")))
+    }
+}
+
 # Registers an account
 #
 # Parameters:
-# - accounts: list of registered accounts
+# - transactions: rows of transactions
 #
 # Returns: The new updated list of accounts
-register <- function(accounts) {
-    while(TRUE){
+register <- function(transactions) {
+    while (TRUE) {
         cat("\014")
         cat("Register Account Name\n")
-        account_name <- readline("Enter Account Name: ")
+        account_name <- trimws(readline("Enter Account Name (First Last): "))
 
-        #checks if account name already exists in the registered accounts
-        if(account_name %in% names(accounts)){
-            cat("Account already exists!\n")
+        if (!is_valid_name(account_name)) {
+            cat("Invalid account name\n")
+
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
-            if (tolower(choice) == "y"){
+
+            if (tolower(choice) == "y") {
                 break
             }
             next
         }
 
-        accounts[[account_name]]$balance <- 5000.0 # opening balance (PHP), same as the Java, Kotlin and C versions
-        update_accounts(accounts)
+        deposit <- read_amount("Initial Deposit: ")
+
+        if (deposit < 5000) {
+            cat("Initial Deposit must not be lower than 5000\n")
+
+            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+
+            if (tolower(choice) == "y") {
+                break
+            }
+            next
+        }
+
+        acct_num <- next_account_number(transactions)
+
+        transactions <- save_transactions(transactions, account_name, acct_num,
+                    deposit, "deposit", deposit)
 
         cat("Account Created Successfuly!\n")
         cat("Hi", account_name, "!\n")
         cat("\n")
+
         choice <- readline("Back to the Main Menu (Y/N)? ... ")
 
-        if (tolower(choice) == "y"){
+        if (tolower(choice) == "y") {
             break
         }
     }
-
-    update_accounts(accounts)
-    return(accounts)
+    transactions
 }
 
 # Deposits an amount to an account
@@ -174,13 +218,13 @@ register <- function(accounts) {
 # - accounts: list of registered accounts
 #
 # Returns: The new updated list of accounts
-deposit <- function(accounts){
+deposit <- function(transactions){
     while(TRUE){
         cat("\014")
         cat("Deposit Amount\n")
-        account_name <- readline("Account Name: ")
+        account_name <- readline("Account Number: ")
 
-        #checks if account name exists
+        #checks if account number exists
         if(!(account_name %in% names(accounts))) {
             cat("Account not found!\n")
             choice <- readline("Back to the Main Menu (Y/N)? ... ")

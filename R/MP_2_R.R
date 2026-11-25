@@ -23,7 +23,8 @@ exchange_rates <- c(
 
 # registered accounts will be stored here upon runtime
 transactions <- load_transactions("../bank_transactions.csv")
-print(head(transactions))
+
+register(transactions)
 
 # Main program loop
 # Repeats until the user selects option 8 (Exit)
@@ -48,11 +49,11 @@ while (TRUE) {
 
     #switch case
     switch(choice,
-        transactions <- register(accounts),
-        transactions <- deposit(accounts),
-        transactions <- withdraw(accounts),
+        transactions <- register(transactions),
+        transactions <- deposit(transactions),
+        transactions <- withdraw(transactions),
         currency_exchange(exchange_rates),
         exchange_rates <- record_exchange_rate(exchange_rates),
-        show_interest_amt(accounts),
+        show_interest_amt(transactions),
     )
 }
