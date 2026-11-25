@@ -12,18 +12,23 @@ import java.io.File
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-
+import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 // ---------------------------------------------------------------------------
 // Constants and data
 // ---------------------------------------------------------------------------
 
-const val ANNUAL_INTEREST_RATE = 0.05   // 5% per annum
+const val ANNUAL_INTEREST_RATE = 0.05
 const val DAYS_PER_YEAR = 365
-const val BASE_CURRENCY_INDEX = 0       // PHP is the base currency
+const val BASE_CURRENCY_INDEX = 0
 const val STARTING_BALANCE = 1000.00
 const val CSV_FILE_PATH = "bank_transactions.csv"
 const val MIN_INITIAL_DEPOSIT = 5000.00
 const val DEFAULT_START_ACCOUNT_NUMBER = 1092000001L
+const val PROJECTION_DAYS = 30
+const val MIN_INTEREST_BALANCE = 10_000.00
+const val SUSPICIOUS_WITHDRAWAL_THRESHOLD = 500_000.00
+const val SUSPICIOUS_VELOCITY_THRESHOLD = 90.0
 
 val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
@@ -44,12 +49,11 @@ val currencies = listOf(
 val baseCurrency = currencies[BASE_CURRENCY_INDEX]
 
 
-data class Account
-    (
-            val accountNumber: Long,
-            val name: String,
-            var balance: Double,
-            val currency: Currency = baseCurrency
+data class Account(
+    val accountNumber: Long,
+    val name: String,
+    var balance: Double,
+    val currency: Currency = baseCurrency
     )
 
 data class BankTransaction(
@@ -68,6 +72,37 @@ data class LoadResult(
     val totalRows: Int,
     val skippedErrors: Int,
     val skippedNonPhp: Int
+
+)
+data class PrivilegeTierRow(
+    val accountName: String,
+    val accountAge: Long,
+    val currentBalance: Double,
+    val averageDailyBalance: Double,
+    val privilegeTier: String
+)
+
+data class InterestProjectionRow(
+    val accountName: String,
+    val currentBalance: Double,
+    val expectedInterest: Double
+)
+data class SuspiciousBehaviorRow(
+    val accountName: String,
+    val date: LocalDate,
+    val totalWithdrawalAmounts: Double,
+    val numberOfDeposits: Int,
+    val totalDepositAmounts: Double,
+    val turnoverVelocity: Double,
+    val riskFlagLevel: String
+)
+
+data class MonthlyCashFlowRow(
+    val month: YearMonth,
+    val transactionCount: Int,
+    val totalDeposits: Double,
+    val totalWithdrawals: Double,
+    val netCashFlow: Double
 )
 
 class AccountStore(private val csvFile: File = File(CSV_FILE_PATH)) {
@@ -182,7 +217,7 @@ fun loadTransactions(csvFile: File = File(CSV_FILE_PATH)): LoadResult {
             val type = parts[6].trim().lowercase()
             val balance = parts[7].trim().replace(",", "").toDoubleOrNull()
 
-            // Basic validation (REQ-0004 & REQ-0005)
+
             val isValidType = type == "deposit" || type == "withdrawal"
             if (name.isEmpty() || accNum == null || date == null || time == null ||
                 amount == null || !amount.isFinite() || balance == null || !balance.isFinite() ||
@@ -193,7 +228,7 @@ fun loadTransactions(csvFile: File = File(CSV_FILE_PATH)): LoadResult {
                 return@forEachIndexed
             }
 
-            // Filter PHP currency only (REQ-0003)
+
             if (currency != "PHP") {
                 skippedNonPhp++
                 return@forEachIndexed
@@ -215,6 +250,316 @@ fun loadTransactions(csvFile: File = File(CSV_FILE_PATH)): LoadResult {
     }
 
     return LoadResult(cleaned, totalRows, skippedErrors, skippedNonPhp)
+}
+
+
+fun generateReport1(
+    transactions: List<BankTransaction>,
+    outputFile: File = File("report1_banking_privilege_tiers.csv")
+): List<PrivilegeTierRow> {
+    if (transactions.isEmpty()) return emptyList()
+
+
+    val latestDate = transactions.maxOf { it.date }
+    val lastMonth = YearMonth.from(latestDate)
+    val monthStart = lastMonth.atDay(1)
+    val daysInMonth = lastMonth.lengthOfMonth()
+
+
+    val byAccount = transactions.groupBy { it.accountNumber }
+
+    val rows = mutableListOf<PrivilegeTierRow>()
+
+    for ((_, accountTxns) in byAccount) {
+
+        val sorted = accountTxns.sortedWith(compareBy<BankTransaction> { it.date }.thenBy { it.time })
+
+        val name = sorted.last().accountName
+        val openedDate = sorted.first().date
+        val accountAge = ChronoUnit.DAYS.between(openedDate, latestDate)
+        val currentBalance = sorted.last().currentBalance
+
+
+        var runningBalance = sorted.lastOrNull { it.date.isBefore(monthStart) }?.currentBalance ?: 0.0
+
+        val eodByDate = mutableMapOf<LocalDate, Double>()
+        for (txn in sorted) {
+            if (YearMonth.from(txn.date) == lastMonth) {
+                eodByDate[txn.date] = txn.currentBalance
+            }
+        }
+
+
+        var sumEod = 0.0
+        for (dayNum in 1..daysInMonth) {
+            val day = lastMonth.atDay(dayNum)
+            if (eodByDate.containsKey(day)) {
+                runningBalance = eodByDate.getValue(day)
+            }
+            sumEod += runningBalance
+        }
+
+        val adb = (sumEod / daysInMonth).roundMoney()
+
+
+        if (adb >= 100_000.00) {
+            val tier = when {
+                adb >= 1_000_000.00 -> "Platinum"
+                adb >= 500_000.00 -> "Gold"
+                else -> "Silver"
+            }
+            rows.add(PrivilegeTierRow(name, accountAge, currentBalance, adb, tier))
+        }
+    }
+
+
+    val sortedRows = rows.sortedByDescending { it.averageDailyBalance }
+
+
+    val csvContent = buildString {
+        appendLine("AccountName,AccountAge,CurrentBalance,AverageDailyBalance,PrivilegeTier")
+        for (r in sortedRows) {
+            appendLine(
+                listOf(
+                    csvField(r.accountName),
+                    r.accountAge.toString(),
+                    csvField(r.currentBalance.moneyComma()),
+                    csvField(r.averageDailyBalance.moneyComma()),
+                    r.privilegeTier
+                ).joinToString(",")
+            )
+        }
+    }
+    outputFile.writeText(csvContent)
+
+    return sortedRows
+}
+
+fun generateReport2(
+    transactions: List<BankTransaction>,
+    outputFile: File = File("report2_interest_expense_projection.csv")
+): List<InterestProjectionRow> {
+    if (transactions.isEmpty()) return emptyList()
+
+
+    val byAccount = transactions.groupBy { it.accountNumber }
+    val rows = mutableListOf<InterestProjectionRow>()
+
+    for ((_, accountTxns) in byAccount) {
+
+        val latestTxn = accountTxns.maxWith(compareBy<BankTransaction> { it.date }.thenBy { it.time })
+
+        val name = latestTxn.accountName
+        val currentBalance = latestTxn.currentBalance
+
+
+        if (currentBalance >= MIN_INTEREST_BALANCE) {
+            val expectedInterest = computeExpectedInterest(currentBalance, PROJECTION_DAYS)
+            rows.add(InterestProjectionRow(name, currentBalance, expectedInterest))
+        }
+    }
+
+
+    val sortedRows = rows.sortedByDescending { it.expectedInterest }
+
+
+    val csvContent = buildString {
+        appendLine("AccountName,CurrentBalance,ExpectedInterest")
+        for (r in sortedRows) {
+            appendLine(
+                listOf(
+                    csvField(r.accountName),
+                    csvField(r.currentBalance.moneyComma()),
+                    csvField(r.expectedInterest.moneyComma())
+                ).joinToString(",")
+            )
+        }
+    }
+    outputFile.writeText(csvContent)
+
+    return sortedRows
+}
+
+fun generateReport3(
+    transactions: List<BankTransaction>,
+    outputFile: File = File("report3_suspicious_client_behavior.csv")
+): List<SuspiciousBehaviorRow> {
+    if (transactions.isEmpty()) return emptyList()
+
+
+    val byAccountAndDate = transactions.groupBy { it.accountNumber to it.date }
+    val rows = mutableListOf<SuspiciousBehaviorRow>()
+
+    for ((key, dayTxns) in byAccountAndDate) {
+        val date = key.second
+        val name = dayTxns.last().accountName
+
+
+        val withdrawals = dayTxns.filter { it.type == "withdrawal" }
+        val deposits = dayTxns.filter { it.type == "deposit" }
+
+        val totalWithdrawals = withdrawals.sumOf { it.amount }.roundMoney()
+        val numberOfDeposits = deposits.size
+        val totalDeposits = deposits.sumOf { it.amount }.roundMoney()
+
+
+        val turnoverVelocity = if (totalDeposits > 0.0) {
+            ((totalWithdrawals / totalDeposits) * 100.0).roundMoney()
+        } else {
+            0.0
+        }
+
+
+        val riskFlag = if (
+            totalWithdrawals >= SUSPICIOUS_WITHDRAWAL_THRESHOLD ||
+            turnoverVelocity >= SUSPICIOUS_VELOCITY_THRESHOLD
+        ) {
+            "Suspicious"
+        } else {
+            "Normal"
+        }
+
+        rows.add(
+            SuspiciousBehaviorRow(
+                accountName = name,
+                date = date,
+                totalWithdrawalAmounts = totalWithdrawals,
+                numberOfDeposits = numberOfDeposits,
+                totalDepositAmounts = totalDeposits,
+                turnoverVelocity = turnoverVelocity,
+                riskFlagLevel = riskFlag
+            )
+        )
+    }
+
+
+    val sortedRows = rows.sortedWith(
+        compareBy<SuspiciousBehaviorRow> { it.date }
+            .thenByDescending { it.riskFlagLevel }
+    )
+
+    val csvContent = buildString {
+        appendLine("AccountName,Date,TotalWithdrawalAmounts,NumberOfDeposits,TotalDepositAmounts,TurnoverVelocity,RiskFlagLevel")
+        for (r in sortedRows) {
+            appendLine(
+                listOf(
+                    csvField(r.accountName),
+                    r.date.format(DATE_FORMATTER),
+                    csvField(r.totalWithdrawalAmounts.moneyComma()),
+                    r.numberOfDeposits.toString(),
+                    csvField(r.totalDepositAmounts.moneyComma()),
+                    csvField(r.turnoverVelocity.moneyComma()),
+                    r.riskFlagLevel
+                ).joinToString(",")
+            )
+        }
+    }
+    outputFile.writeText(csvContent)
+
+    return sortedRows
+}
+
+fun generateReport4(
+    transactions: List<BankTransaction>,
+    outputFile: File = File("report4_monthly_cash_flow.csv")
+): List<MonthlyCashFlowRow> {
+    if (transactions.isEmpty()) return emptyList()
+
+
+    val byMonth = transactions.groupBy { YearMonth.from(it.date) }
+    val rows = mutableListOf<MonthlyCashFlowRow>()
+
+    for ((month, monthTxns) in byMonth) {
+        val totalDeposits = monthTxns
+            .filter { it.type == "deposit" }
+            .sumOf { it.amount }
+            .roundMoney()
+
+        val totalWithdrawals = monthTxns
+            .filter { it.type == "withdrawal" }
+            .sumOf { it.amount }
+            .roundMoney()
+
+        val netCashFlow = (totalDeposits - totalWithdrawals).roundMoney()
+
+        rows.add(
+            MonthlyCashFlowRow(
+                month = month,
+                transactionCount = monthTxns.size,
+                totalDeposits = totalDeposits,
+                totalWithdrawals = totalWithdrawals,
+                netCashFlow = netCashFlow
+            )
+        )
+    }
+
+
+    val sortedRows = rows.sortedBy { it.month }
+
+
+    val csvContent = buildString {
+        appendLine("Month,TransactionCount,TotalDeposits,TotalWithdrawals,NetCashFlow")
+        for (r in sortedRows) {
+            appendLine(
+                listOf(
+                    r.month.toString(),
+                    r.transactionCount.toString(),
+                    csvField(r.totalDeposits.moneyComma()),
+                    csvField(r.totalWithdrawals.moneyComma()),
+                    csvField(r.netCashFlow.moneyComma())
+                ).joinToString(",")
+            )
+        }
+    }
+    outputFile.writeText(csvContent)
+
+    return sortedRows
+}
+
+fun generateSummaryJson(
+    transactions: List<BankTransaction>,
+    report2: List<InterestProjectionRow>,
+    outputFile: File = File("summary.json")
+): String {
+
+    val byAccount = transactions.groupBy { it.accountNumber }
+    val totalAccounts = byAccount.size
+
+    val totalDeposits = transactions
+        .filter { it.type == "deposit" }
+        .sumOf { it.amount }
+        .roundMoney()
+
+    val totalWithdrawals = transactions
+        .filter { it.type == "withdrawal" }
+        .sumOf { it.amount }
+        .roundMoney()
+
+
+    val totalBalance = byAccount.values
+        .sumOf { accountTxns ->
+            accountTxns.maxWith(compareBy<BankTransaction> { it.date }.thenBy { it.time }).currentBalance
+        }
+        .roundMoney()
+
+
+    val totalInterestExpense = report2
+        .sumOf { it.expectedInterest }
+        .roundMoney()
+
+
+    val json = """
+        {
+          "total_accounts": $totalAccounts,
+          "total_deposits": ${totalDeposits.money()},
+          "total_withdrawals": ${totalWithdrawals.money()},
+          "total_balance": ${totalBalance.money()},
+          "total_interest_expense": ${totalInterestExpense.money()}
+        }
+    """.trimIndent()
+
+    outputFile.writeText("$json\n")
+    return json
 }
 // ---------------------------------------------------------------------------
 // Helpers: formatting, math, input
@@ -303,12 +648,34 @@ fun promptAmountAtLeast(label: String, min: Double): Double {
     }
 }
 
+
+fun Double.moneyComma(): String = "%,.2f".format(Locale.US, this)
+
+
+fun csvField(value: String): String =
+    if (value.contains(",") || value.contains("\"")) "\"${value.replace("\"", "\"\"")}\""
+    else value
+
+
+fun computeExpectedInterest(startingBalance: Double, days: Int = PROJECTION_DAYS): Double {
+    val dailyRate = ANNUAL_INTEREST_RATE / DAYS_PER_YEAR
+    var balance = startingBalance
+    var totalInterest = 0.0
+
+    for (day in 1..days) {
+        val interest = (balance * dailyRate).roundMoney()
+        totalInterest = (totalInterest + interest).roundMoney()
+        balance = (balance + interest).roundMoney()
+    }
+    return totalInterest
+}
+
 // ---------------------------------------------------------------------------
-// Transactions (one class per menu option)
+// Transactions
 // ---------------------------------------------------------------------------
 
 interface Transaction {
-    /** If true, the app goes straight back to the menu instead of asking "Back to the Main Menu (Y/N)". */
+
     val returnsToMenuAutomatically: Boolean get() = false
 
     fun execute()
@@ -520,14 +887,105 @@ class GenerateReports : Transaction {
                         continue
                     }
                     println("Generating reports...")
-                    // We will call Reports 1–4 and summary.json here in Steps 4–7!
+                    println("Outputs saved to individual files...")
+                    println()
+
+                    val report1 = generateReport1(data)
+                    printReport1Preview(report1)
+
+                    val report2 = generateReport2(data)
+                    printReport2Preview(report2)
                     println("Ready to generate reports from ${data.size} PHP transactions.")
+                    val report3 = generateReport3(data)
+                    printReport3Preview(report3)
+                    println()
+                    val report4 = generateReport4(data)
+                    printReport4Preview(report4)
+
+                    val summaryJson = generateSummaryJson(data, report2)
+                    println("Summary State (summary.json):")
+                    println(summaryJson)
                     println()
                 }
                 3 -> return
             }
         }
     }
+
+    fun printReport1Preview(rows: List<PrivilegeTierRow>) {
+        println("Report 1: Banking Privilege Tiers")
+        println("%-22s | %-10s | %-14s | %-19s | %s".format(
+            Locale.US, "AccountName", "AccountAge", "CurrentBalance", "AverageDailyBalance", "PrivilegeTier"
+        ))
+        rows.take(2).forEach { r ->
+            println("%-22s | %-10d | %-14s | %-19s | %s".format(
+                Locale.US,
+                r.accountName,
+                r.accountAge,
+                r.currentBalance.moneyComma(),
+                r.averageDailyBalance.moneyComma(),
+                r.privilegeTier
+            ))
+        }
+        println("(Full table exported to report1_banking_privilege_tiers.csv)")
+        println()
+    }
+
+    fun printReport2Preview(rows: List<InterestProjectionRow>) {
+        println("Report 2: Interest Expense Projection")
+        println("%-22s | %-14s | %s".format(
+            Locale.US, "AccountName", "CurrentBalance", "ExpectedInterest"
+        ))
+        rows.take(2).forEach { r ->
+            println("%-22s | %-14s | %s".format(
+                Locale.US,
+                r.accountName,
+                r.currentBalance.moneyComma(),
+                r.expectedInterest.moneyComma()
+            ))
+        }
+        println("(Full table exported to report2_interest_expense_projection.csv)")
+        println()
+    }
+}
+
+fun printReport3Preview(rows: List<SuspiciousBehaviorRow>) {
+    println("Report 3: Suspicious Client Behavior")
+    println("%-20s | %-10s | %-15s | %-8s | %-15s | %-10s | %s".format(
+        Locale.US, "AccountName", "Date", "TotalWithdrawal", "Deposits", "TotalDeposit", "Velocity%", "RiskFlag"
+    ))
+    rows.take(2).forEach { r ->
+        println("%-20s | %-10s | %-15s | %-8d | %-15s | %-10s | %s".format(
+            Locale.US,
+            r.accountName,
+            r.date.format(DATE_FORMATTER),
+            r.totalWithdrawalAmounts.moneyComma(),
+            r.numberOfDeposits,
+            r.totalDepositAmounts.moneyComma(),
+            r.turnoverVelocity.moneyComma(),
+            r.riskFlagLevel
+        ))
+    }
+    println("(Full table exported to report3_suspicious_client_behavior.csv)")
+    println()
+}
+fun printReport4Preview(rows: List<MonthlyCashFlowRow>) {
+    println("Report 4: Monthly Cash Flow Summary")
+    println("%-8s | %-12s | %-16s | %-16s | %s".format(
+        Locale.US, "Month", "Transactions", "TotalDeposits", "TotalWithdrawals", "NetCashFlow"
+    ))
+    rows.take(2).forEach { r ->
+        println("%-8s | %-12d | %-16s | %-16s | %s".format(
+            Locale.US,
+            r.month.toString(),
+            r.transactionCount,
+            r.totalDeposits.moneyComma(),
+            r.totalWithdrawals.moneyComma(),
+            r.netCashFlow.moneyComma()
+        ))
+    }
+    println("(Full table exported to report4_monthly_cash_flow.csv)")
+    println()
 }
 
 // ---------------------------------------------------------------------------
