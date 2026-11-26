@@ -1,3 +1,5 @@
+path <- "../bank_transactions.csv"
+
 # Displays the main menu
 main_menu <- function() {
     cat(
@@ -17,7 +19,7 @@ main_menu <- function() {
 # reads and loads the account records from the database
 #
 # Returns: The registered accounts stored in a data frame (table)
-load_transactions <- function(path) {
+load_transactions <- function() {
     transactions <- read.csv(path, colClasses = "character", strip.white = TRUE)
     rows_loaded <- nrow(transactions)
 
@@ -53,7 +55,7 @@ load_transactions <- function(path) {
 # Parameters:
 # - transactions: data frame (1 row corresponds to one transaction)
 save_transactions <- function(transactions, account_name, account_number,
-                        amount, type, new_balance, path = "../bank_transactions.csv") {
+                        amount, type, new_balance) {
     now <- Sys.time()
 
     file_row <- data.frame(
@@ -511,4 +513,312 @@ show_interest_amt <- function(transactions) {
             break
         }
     }
+}
+
+is_valid_int_choice <- function(input, lb, ub) {
+    if (!grepl("^-?[0-9]{1,9}$", input)) return(FALSE)
+
+    input <- as.integer(input)
+
+    if (input < lb || input > ub) {
+        return(FALSE)
+    }
+
+    TRUE
+}
+
+# Generate Reports submenu
+#
+# Parameters:
+# - transactions: data frame (1 row corresponds to one transaction)
+#
+# Returns: transactions (reloaded if the user chose "Load the file")
+generate_reports <- function(transactions) {
+    while (TRUE) {
+        cat("\014")
+        cat("Generate Reports\n")
+        cat("\n")
+        cat("[1] Load the file\n",
+            "[2] Generate Reports\n",
+            "[3] Back\n",
+            sep = "")
+
+        choice <- readline("Enter choice: ")
+
+        #checks if the user inputs a valid int and if it is within range
+        if (!is_valid_int_choice(choice, 1, 3)) {
+            cat("Invalid Input!\n")
+            readline("Press Enter to continue...")
+            next
+        }
+
+        choice <- as.integer(choice)
+
+        if (choice == 3) break
+
+        if (choice == 1) {
+            transactions <- load_transactions()
+            readline("Press Enter to continue...")
+            next
+        }
+
+        # choice == 2
+        cat("\nGenerating reports...\n")
+        cat("Outputs saved to individual files...\n\n")
+
+        report1 <- build_report1(transactions)
+        write_report(report1, "report1_banking_privilege_tiers.csv",
+                     "Report 1: Banking Privilege Tiers",
+                     c("CurrentBalance", "AverageDailyBalance"))
+
+        report2 <- build_report2(transactions)
+        write_report(report2, "report2_interest_expense_projection.csv",
+                     "Report 2: Interest Expense Projection",
+                     c("CurrentBalance", "ExpectedInterest"))
+
+        report3 <- build_report3(transactions)
+        write_report(report3, "report3_suspicious_client_behavior.csv",
+                     "Report 3: Suspicious Client Behavior",
+                     c("TotalWithdrawalAmounts", "TotalDepositAmounts", "TurnoverVelocity"))
+
+        report4 <- build_report4(transactions)
+        write_report(report4, "report4_client_activity_ranking.csv",
+                     "Report 4: Client Activity Ranking",
+                     c("TotalAmountMoved", "AverageTransactionSize"))
+
+        write_summary(transactions, report2, "summary.json")
+
+        readline("Press Enter to continue...")
+    }
+
+    transactions
+}
+
+# Formats money: 1234567.891 -> "1,234,567.89" (NA -> "N/A")
+format_money <- function(x) {
+    formatted <- formatC(round(x, 2), format = "f", digits = 2, big.mark = ",")
+    formatted[is.na(x)] <- "N/A"
+    formatted
+}
+
+# Writes a report to a CSV file and shows a 2-row preview
+#
+# Parameters:
+# - report: data frame with real numbers (not yet formatted)
+# - filename: name of the CSV file to create
+# - title: title shown on screen
+# - money_columns: names of the columns to format as "1,234,567.89"
+write_report <- function(report, filename, title, money_columns) {
+    output <- report  
+
+    for (column in money_columns) {
+        output[[column]] <- format_money(output[[column]])
+    }
+
+    # dates are written in the same format as the input CSV
+    for (column in names(output)) {
+        if (inherits(output[[column]], "Date")) {
+            output[[column]] <- format(output[[column]], "%d/%m/%Y")
+        }
+    }
+
+    # every field becomes text so every field is quoted the same way
+    output[] <- lapply(output, as.character)
+
+    write.csv(output, filename, row.names = FALSE)
+
+    cat(title, "\n")
+    print(head(output, 2), row.names = FALSE)
+    cat(sprintf("\n(Full table exported to %s)\n\n", filename))
+}
+
+# Writes summary.json with totals across the reports
+#
+# Parameters:
+# - transactions: data frame of all transactions
+# - report2: Interest Expense Projection report (for total interest expense)
+# - filename: name of the JSON file to create
+write_summary <- function(transactions, report2, filename) {
+    accounts <- unique(transactions$account_number)
+
+    current_balances <- numeric(length(accounts))
+    for (i in seq_along(accounts)) {
+        current_balances[i] <- get_current_balance(transactions, accounts[i])
+    }
+
+    is_deposit <- transactions$type == "deposit"
+    is_withdrawal <- transactions$type == "withdrawal"
+
+    json <- sprintf(paste0(
+        "{\"total_accounts\": %d, \"total_deposits\": %.2f, ",
+        "\"total_withdrawals\": %.2f, \"total_balance\": %.2f, ",
+        "\"total_interest_expense\": %.2f}"),
+        length(accounts),
+        sum(transactions$amount[is_deposit]),
+        sum(transactions$amount[is_withdrawal]),
+        sum(current_balances),
+        sum(report2$ExpectedInterest))
+
+    writeLines(json, filename)
+
+    cat("Summary State (", filename, "):\n", json, "\n", sep = "")
+}
+
+# Report 1: Banking Privilege Tiers
+#
+# Parameters:
+# - transactions: data frame of all transactions
+# - reference_date: date the report is computed relative to
+#   (default: latest transaction date, so outputs are reproducible)
+#
+# Returns: data frame sorted descending by AverageDailyBalance
+build_report1 <- function(transactions, reference_date = max(transactions$date)) {
+    #"last month" = the full calendar month before the reference date's month
+    first_of_this_month <- as.Date(format(reference_date, "%Y-%m-01"))
+    month_end <- first_of_this_month - 1
+    month_start <- as.Date(format(month_end, "%Y-%m-01"))
+    days <- seq(month_start, month_end, by = "day") #vector of every date from last month
+
+    accounts <- unique(transactions$account_number) #vector of unique account numbers
+
+    rows <- list()
+
+    for (acct in accounts) {
+        #stores all the transactions made by an account
+        acct_rows <- transactions[transactions$account_number == acct, ]
+
+        end_of_day <- numeric(length(days)) #end of day balances
+
+        for (i in seq_along(days)) {
+            #latest balance on or before this day (carries over on days with no transactions)
+            up_to_day <- acct_rows$current_balance[acct_rows$date <= days[i]]
+            end_of_day[i] <- if (length(up_to_day) == 0) 0 else tail(up_to_day, 1)
+        }
+
+        rows[[acct]] <- data.frame(
+            AccountNumber = acct,
+            AccountName = acct_rows$account_name[1],
+            AccountAge = as.integer(reference_date - acct_rows$date[1]),
+            CurrentBalance = tail(acct_rows$current_balance, 1),
+            AverageDailyBalance = sum(end_of_day) / length(days)
+        )
+    }
+
+    report <- do.call(rbind, rows)
+    report <- report[report$AverageDailyBalance >= 100000, ]
+    report$PrivilegeTier <- ifelse(report$AverageDailyBalance < 500000, "Silver",
+                            ifelse(report$AverageDailyBalance < 1000000, "Gold", "Platinum"))
+
+    report <- report[order(-report$AverageDailyBalance, report$AccountNumber), ]
+    report$AccountNumber <- NULL #only used for tie-breaking
+    rownames(report) <- NULL
+    report
+}
+
+# Report 2: Interest Expense Projection
+# Simple interest over 30 days at 5% per annum, based on the latest current balance
+#
+# Returns: data frame sorted descending by ExpectedInterest
+build_report2 <- function(transactions) {
+    accounts <- unique(transactions$account_number)
+
+    rows <- list() #each rows of the report will be stored here
+
+    for (acct in accounts) {
+        acct_rows <- transactions[transactions$account_number == acct, ]
+        current_balance <- tail(acct_rows$current_balance, 1)
+
+        #daily interest = balance x (0.05 / 365), for 30 days
+        expected_interest <- current_balance * (0.05 / 365) * 30
+
+        rows[[acct]] <- data.frame(
+            AccountNumber = acct,
+            AccountName = acct_rows$account_name[1],
+            CurrentBalance = current_balance,
+            ExpectedInterest = expected_interest
+        )
+    }
+
+    report <- do.call(rbind, rows)
+    report <- report[report$CurrentBalance >= 10000, ]
+    report <- report[order(-report$ExpectedInterest, report$AccountNumber), ]
+    report$AccountNumber <- NULL
+    rownames(report) <- NULL
+    report
+}
+
+# Report 3: Suspicious Client Behavior
+# One row per account per day with at least one transaction
+#
+# Returns: data frame sorted ascending by Date, Suspicious first within a date
+build_report3 <- function(transactions) {
+    #unique (account number, date) pairs = the rows of the report
+    account_days <- unique(transactions[, c("account_number", "date")])
+
+    rows <- list()
+
+    for (i in seq_len(nrow(account_days))) {
+        acct <- account_days$account_number[i]
+        day <- account_days$date[i]
+
+        #transactions made by an account on this day
+        todays <- transactions[transactions$account_number == acct & transactions$date == day, ]
+
+        withdrawals <- todays[todays$type == "withdrawal", ]
+        deposits <- todays[todays$type == "deposit", ]
+
+        twa <- sum(withdrawals$amount)
+        tda <- sum(deposits$amount)
+        tov <- if (tda == 0) NA else twa / tda * 100 #NA = no deposits that day (shown as N/A)
+
+        rfl <- if (twa >= 500000 || (!is.na(tov) && tov >= 90)) "Suspicious" else "Normal"
+
+        rows[[i]] <- data.frame(
+            AccountNumber          = acct,
+            AccountName            = todays$account_name[1],
+            Date                   = day,
+            TotalWithdrawalAmounts = twa,
+            NumberOfDeposits       = nrow(deposits),
+            TotalDepositAmounts    = tda,
+            TurnoverVelocity       = tov,
+            RiskFlagLevel          = rfl
+        )
+    }
+
+    report <- do.call(rbind, rows)
+    report <- report[order(report$Date, report$RiskFlagLevel != "Suspicious", report$AccountNumber), ]
+    report$AccountNumber <- NULL
+    rownames(report) <- NULL
+    report
+}
+
+# Report 4: Client Activity Ranking (custom report)
+# Ranks clients by the total amount of money moved through their account
+#
+# Returns: data frame sorted descending by TotalAmountMoved
+build_report4 <- function(transactions) {
+    accounts <- unique(transactions$account_number)
+
+    rows <- list()
+
+    for (acct in accounts) {
+        acct_rows <- transactions[transactions$account_number == acct, ]
+
+        transaction_count <- nrow(acct_rows)
+        total_amount_moved <- sum(acct_rows$amount) #deposits + withdrawals
+
+        rows[[acct]] <- data.frame(
+            AccountNumber = acct,
+            AccountName = acct_rows$account_name[1],
+            TransactionCount = transaction_count,
+            TotalAmountMoved = total_amount_moved,
+            AverageTransactionSize = total_amount_moved / transaction_count
+        )
+    }
+
+    report <- do.call(rbind, rows)
+    report <- report[order(-report$TotalAmountMoved, report$AccountNumber), ]
+    report$AccountNumber <- NULL
+    rownames(report) <- NULL
+    report
 }

@@ -21,8 +21,8 @@ exchange_rates <- c(
     "Chinese Yuan Renminni (CNY)" = 0.11
 )
 
-# registered accounts will be stored here upon runtime
-transactions <- load_transactions("../bank_transactions.csv")
+# all transactions (e.g deposit, withdrawal, registration) will be stored here upon run-time
+transactions <- load_transactions()
 
 # Main program loop
 # Repeats until the user selects option 8 (Exit)
@@ -53,5 +53,6 @@ while (TRUE) {
         currency_exchange(exchange_rates),
         exchange_rates <- record_exchange_rate(exchange_rates),
         show_interest_amt(transactions),
+        transactions <- generate_reports(transactions)
     )
 }
