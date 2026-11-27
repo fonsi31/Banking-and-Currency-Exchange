@@ -29,13 +29,13 @@ transactions <- load_transactions()
 while (TRUE) {
     cat("\014") #clears terminal
     main_menu() #displays main menu
-    choice <- readline("choice: ") #gets user input
+    choice <- read_input("choice: ") #gets user input
 
     #checks if the user inputs a valid int and if it is within range
     if (!grepl("^-?[0-9]+$", choice) ||
     as.integer(choice) < 1 || as.integer(choice) > 8) {
         cat("Invalid Input!\n")
-        readline("Press Enter to continue...")
+        read_input("Press Enter to continue...")
         next
     }
 

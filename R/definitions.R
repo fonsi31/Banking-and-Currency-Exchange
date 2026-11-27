@@ -1,5 +1,20 @@
 path <- "../bank_transactions.csv"
 
+# Reads one line of user input.
+# readline() only waits for input in an interactive session (R console);
+# under "Rscript MP_2_R.R" it returns "" immediately, so read stdin instead.
+read_input <- function(prompt = "") {
+    if (interactive()) return(readline(prompt))
+    cat(prompt)
+    if (!exists("stdin_con", envir = globalenv())) { #if not open
+        assign("stdin_con", file("stdin"), envir = globalenv())
+        open(stdin_con)
+    }
+    line <- readLines(stdin_con, n = 1)
+    if (length(line) == 0) quit(save = "no") # input closed (Ctrl+Z / Ctrl+D)
+    line
+}
+
 # Displays the main menu
 main_menu <- function() {
     cat(
@@ -148,7 +163,7 @@ next_account_number <- function(transactions) {
 
 read_amount <- function(prompt, minimum = 0.01) {
     repeat {
-        input <- trimws(readline(prompt))
+        input <- trimws(read_input(prompt))
 
         if (grepl("^[0-9]+(\\.[0-9]{1,2})?$", input)) {
             amount <- as.numeric(input)
@@ -170,12 +185,12 @@ register <- function(transactions) {
     while (TRUE) {
         cat("\014")
         cat("Register Account Name\n")
-        account_name <- trimws(readline("Enter Account Name (First Last): "))
+        account_name <- trimws(read_input("Enter Account Name (First Last): "))
 
         if (!is_valid_name(account_name)) {
             cat("Invalid account name\n")
 
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
 
             if (tolower(choice) == "y") {
                 break
@@ -188,7 +203,7 @@ register <- function(transactions) {
         if (deposit < 5000) {
             cat("Initial Deposit must not be lower than 5000\n")
 
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
 
             if (tolower(choice) == "y") {
                 break
@@ -205,7 +220,7 @@ register <- function(transactions) {
         cat("Hi", account_name, "!\n")
         cat("\n")
 
-        choice <- readline("Back to the Main Menu (Y/N)? ... ")
+        choice <- read_input("Back to the Main Menu (Y/N)? ... ")
 
         if (tolower(choice) == "y") {
             break
@@ -238,13 +253,13 @@ deposit <- function(transactions) {
     while (TRUE) {
         cat("\014")
         cat("Deposit Amount\n")
-        accno <- readline("Account Number: ")
+        accno <- read_input("Account Number: ")
 
         #checks if account number doesn't exists
         if (!account_exists(transactions, accno)) {
             cat("Account doesn't exists!\n")
 
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
 
             if (tolower(choice) == "y") {
                 break
@@ -268,7 +283,7 @@ deposit <- function(transactions) {
         cat(sprintf("Updated Balance: %.2f\n", new_balance))
         cat("\n")
 
-        choice <- readline("Back to the Main Menu (Y/N)? ... ")
+        choice <- read_input("Back to the Main Menu (Y/N)? ... ")
 
         if (tolower(choice) == "y") {
             break
@@ -288,13 +303,13 @@ withdraw <- function(transactions){
     while(TRUE){
         cat("\014")
         cat("Withdraw Amount\n")
-        accno <- readline("Account Number: ")
+        accno <- read_input("Account Number: ")
 
         #checks if account number doesn't exists
         if (!account_exists(transactions, accno)) {
             cat("Account doesn't exists!")
 
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
 
             if (tolower(choice) == "y") {
                 break
@@ -313,7 +328,7 @@ withdraw <- function(transactions){
         #checks if current balance can handle withdraw amount
         if (withdraw_amt > current_balance) {
             cat("Insufficient Balance!\n")
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
                 break
             }
@@ -324,12 +339,12 @@ withdraw <- function(transactions){
         new_balance <- current_balance - withdraw_amt
 
         transactions <- save_transactions(transactions, account_name, accno, 
-                    withdraw_amt, "deposit", new_balance)
+                    withdraw_amt, "withdrawal", new_balance)
 
         cat(sprintf("Updated Balance: %.2f", new_balance))
         cat("\n")
 
-        choice <- readline("Back to the Main Menu (Y/N)? ... ")
+        choice <- read_input("Back to the Main Menu (Y/N)? ... ")
 
         if (tolower(choice) == "y"){
             break
@@ -356,9 +371,9 @@ currency_exchange <- function(exchange_rates) {
             i <- i + 1
         }
 
-        from <- readline("FROM: ")
-        source_amt <- as.numeric(readline("Source Amount: "))
-        to <- readline("TO: ")
+        from <- read_input("FROM: ")
+        source_amt <- as.numeric(read_input("Source Amount: "))
+        to <- read_input("TO: ")
         
         num_of_currs <- length(exchange_rates)
 
@@ -368,7 +383,7 @@ currency_exchange <- function(exchange_rates) {
         as.integer(to) < 1 || as.integer(to) > num_of_currs ||
         is.na(source_amt)) {
             cat("Invalid Input!\n")
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
                 break
             }
@@ -380,7 +395,7 @@ currency_exchange <- function(exchange_rates) {
         converted_amt <- convert_currency(source_amt, from, to, exchange_rates)
         cat(sprintf("Exchange Amount: %.3f\n", converted_amt))
         cat("\n")
-        choice <- readline("Convert another currency (Y/N)? ... ")
+        choice <- read_input("Convert another currency (Y/N)? ... ")
         if (tolower(choice) == "n") {
             break
         }
@@ -410,21 +425,21 @@ record_exchange_rate <- function(exchange_rates){
         }
         cat("\n") 
 
-        foreign_currency <- readline("Select Foreign Currency: ")
+        foreign_currency <- read_input("Select Foreign Currency: ")
         if (!grepl("^-?[0-9]+$", foreign_currency) || as.integer(foreign_currency) < 1 ||
         as.integer(foreign_currency) > num_of_currs - 1) {
             cat("Invalid Input!\n")
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
                 break
             }
             next
         }
 
-        new_exchange_rate <- as.numeric(readline("Set New Exchange Rate: "))
+        new_exchange_rate <- as.numeric(read_input("Set New Exchange Rate: "))
         if (is.na(new_exchange_rate)){
             cat("Invalid Input!\n")
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
                 break
             }
@@ -436,7 +451,7 @@ record_exchange_rate <- function(exchange_rates){
 
         cat("New exchange rate set for", names(exchange_rates)[i], "\n")
 
-        choice <- readline("Go Back to the Main Menu (Y/N)? ... ")
+        choice <- read_input("Go Back to the Main Menu (Y/N)? ... ")
         if (tolower(choice) == "y"){
             break
         }
@@ -455,12 +470,12 @@ show_interest_amt <- function(transactions) {
         cat("\014")
         cat("Show Interest Amount\n")
 
-        accno <- readline("Account Number: ")
+        accno <- read_input("Account Number: ")
 
         #checks if an account exists in the registered accounts
         if (!account_exists(transactions, accno)) {
             cat("Account not found!\n")
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
                 break
             }
@@ -474,12 +489,12 @@ show_interest_amt <- function(transactions) {
         cat("Currency: PHP\n")
         cat("Interest Rate: 5%\n")
         cat("\n")
-        days <- readline("Total Number of Days: ")
+        days <- read_input("Total Number of Days: ")
         
         #input validation for number of days
         if (!grepl("^-?[0-9]+$", days)) {
             cat("Invalid Input!\n")
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
                 break
             }
@@ -490,7 +505,7 @@ show_interest_amt <- function(transactions) {
         #input validation for number of days
         if (days < 1) {
             cat("Invalid Input!\n")
-            choice <- readline("Back to the Main Menu (Y/N)? ... ")
+            choice <- read_input("Back to the Main Menu (Y/N)? ... ")
             if (tolower(choice) == "y") {
                 break
             }
@@ -508,7 +523,7 @@ show_interest_amt <- function(transactions) {
 
         cat("\n")
 
-        choice <- readline("Back to the Main Menu (Y/N)? ... ")
+        choice <- read_input("Back to the Main Menu (Y/N)? ... ")
         if (tolower(choice) == "y") {
             break
         }
@@ -543,12 +558,12 @@ generate_reports <- function(transactions) {
             "[3] Back\n",
             sep = "")
 
-        choice <- readline("Enter choice: ")
+        choice <- read_input("Enter choice: ")
 
         #checks if the user inputs a valid int and if it is within range
         if (!is_valid_int_choice(choice, 1, 3)) {
             cat("Invalid Input!\n")
-            readline("Press Enter to continue...")
+            read_input("Press Enter to continue...")
             next
         }
 
@@ -558,7 +573,7 @@ generate_reports <- function(transactions) {
 
         if (choice == 1) {
             transactions <- load_transactions()
-            readline("Press Enter to continue...")
+            read_input("Press Enter to continue...")
             next
         }
 
@@ -588,7 +603,7 @@ generate_reports <- function(transactions) {
 
         write_summary(transactions, report2, "summary.json")
 
-        readline("Press Enter to continue...")
+        read_input("Press Enter to continue...")
     }
 
     transactions
@@ -647,7 +662,7 @@ write_summary <- function(transactions, report2, filename) {
     }
 
     is_deposit <- transactions$type == "deposit"
-    is_withdrawal <- transactions$type == "withdrawal"
+    is_withdrawal <- transactions$type == "withdrawal"  
 
     json <- sprintf(paste0(
         "{\"total_accounts\": %d, \"total_deposits\": %.2f, ",
