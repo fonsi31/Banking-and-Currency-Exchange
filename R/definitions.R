@@ -31,38 +31,168 @@ main_menu <- function() {
     )
 }
 
-# reads and loads the account records from the database
+# Column names of the transactions file, in order
+CSV_HEADER <- "account_name,account_number,date,time,currency,amount,type,current_balance"
+
+# Rounds money to 2 decimals, half-up (0.005 -> 0.01), the same way as the
+# other language versions. R's round() rounds halves to even and works on the
+# binary value, so it can differ by 0.01 on exact ties.
+round_money <- function(x) {
+    vapply(x, round_money_one, numeric(1), USE.NAMES = FALSE)
+}
+
+round_money_one <- function(value) {
+    if (is.na(value) || !is.finite(value)) return(value)
+
+    # fast path: the value already has at most 2 decimals
+    cents <- value * 100
+    if (abs(cents - round(cents)) < 1e-6 && abs(cents) < 1e13) return(round(cents) / 100)
+
+    # shortest decimal text that represents this double exactly
+    for (digits in 15:17) {
+        text <- format(value, digits = digits, scientific = FALSE)
+        if (as.numeric(text) == value) break
+    }
+
+    negative <- startsWith(text, "-")
+    text <- sub("^-", "", text)
+    parts <- strsplit(text, ".", fixed = TRUE)[[1]]
+    whole <- parts[1]
+    fraction <- if (length(parts) > 1) parts[2] else ""
+    fraction <- substr(paste0(fraction, "000"), 1, 3)
+
+    total_cents <- as.numeric(paste0(whole, substr(fraction, 1, 2)))
+    if (substr(fraction, 3, 3) >= "5") total_cents <- total_cents + 1
+
+    result <- total_cents / 100
+    if (negative) -result else result
+}
+
+# Adds numbers one by one in order (like a simple loop in C/Java/Kotlin).
+# sum() uses extra precision internally, which can change the last cent
+# after rounding, so totals that go into the reports use this instead.
+sequential_sum <- function(x) {
+    total <- 0
+    for (value in x) total <- total + value
+    total
+}
+
+# Parses a number field; returns NA for anything that is not a plain number
+parse_number <- function(text) {
+    text <- gsub(",", "", trimws(text), fixed = TRUE)
+    is_hex <- grepl("^[+-]?0[xX]", text)
+    number <- suppressWarnings(as.numeric(text))
+    number[is_hex] <- NA
+    number
+}
+
+# Reads and validates the transactions file
 #
-# Returns: The registered accounts stored in a data frame (table)
-load_transactions <- function() {
-    transactions <- read.csv(path, colClasses = "character", strip.white = TRUE)
-    rows_loaded <- nrow(transactions)
+# Parameters:
+# - php_only: keep only PHP transactions (FALSE is used to find the
+#   highest account number across all currencies)
+# - verbose: print the per-row error log and the summary line
+#
+# Returns: data frame of valid transactions in file order
+load_transactions <- function(php_only = TRUE, verbose = TRUE) {
+    empty <- data.frame(
+        account_name = character(0), account_number = character(0),
+        date = as.Date(character(0)), time = character(0),
+        currency = character(0), amount = numeric(0), type = character(0),
+        current_balance = numeric(0), datetime = as.POSIXct(character(0), tz = "UTC"),
+        stringsAsFactors = FALSE
+    )
 
-    transactions$amount <- suppressWarnings(as.numeric(transactions$amount))
-    transactions$current_balance <- suppressWarnings(as.numeric(transactions$current_balance))
+    if (!file.exists(path)) {
+        if (verbose) {
+            cat("Error: ", path, " not found.\n", sep = "")
+            cat("Processing dataset... (0 rows loaded, 0 filtered for PHP currency, 0 error(s) skipped)\n")
+        }
+        return(empty)
+    }
 
-    date_and_time <- paste(transactions$date, transactions$time)
-    transactions$datetime <- as.POSIXct(date_and_time, format = "%d/%m/%Y %H:%M:%S", tz = "UTC")
-    transactions$date <- as.Date(transactions$date, format = "%d/%m/%Y")
+    lines <- readLines(path, warn = FALSE, encoding = "UTF-8")
+    lines <- sub("\r$", "", lines)
+    lines <- lines[-1]                               # drop the header
+    line_numbers <- seq_along(lines) + 1             # row numbers count the header as row 1
 
-    is_bad <-   is.na(transactions$datetime) |
-                is.na(transactions$amount) |
-                is.na(transactions$current_balance) |
-                !grepl("^[0-9]{10}$", transactions$account_number) |
-                !(transactions$type %in% c("deposit", "withdrawal"))
+    is_blank <- trimws(lines) == ""
+    lines <- lines[!is_blank]
+    line_numbers <- line_numbers[!is_blank]
+    rows_loaded <- length(lines)
 
-    invalid_rows <- sum(is_bad)
-    transactions <- transactions[!is_bad, ]
+    fields <- strsplit(lines, ",", fixed = TRUE)
+    field_count <- lengths(fields)
+    has_8_columns <- field_count >= 8
 
-    transactions <- transactions[transactions$currency %in% "PHP", ]
+    # pad short rows so every column can be read; they are rejected below
+    fields <- lapply(fields, function(f) c(f, rep("", max(0, 8 - length(f)))))
+    column <- function(i) trimws(vapply(fields, `[`, character(1), i))
 
-    cat("Processing dataset... (",
-        format(rows_loaded, big.mark = ","), " rows loaded, ",
-        format(nrow(transactions), big.mark = ","), " filtered for PHP currency, ",
-        format(invalid_rows, big.mark = ","), " invalid rows removed)\n",
-        sep = "")
+    account_name <- column(1)
+    account_number <- column(2)
+    date_text <- column(3)
+    time_text <- column(4)
+    currency <- toupper(column(5))
+    amount <- parse_number(column(6))
+    type <- tolower(column(7))
+    current_balance <- parse_number(column(8))
 
-    transactions[order(transactions$datetime), ]
+    # dd/mm/yyyy with 2-digit day and month; H:mm:ss with hour 0-23
+    date <- as.Date(date_text, format = "%d/%m/%Y")
+    date[!grepl("^[0-9]{2}/[0-9]{2}/[0-9]{4}$", date_text)] <- NA
+    valid_time <- grepl("^([0-9]|[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$", time_text)
+
+    is_valid <- has_8_columns &
+                account_name != "" &
+                grepl("^[+-]?[0-9]+$", account_number) &
+                !is.na(date) &
+                valid_time &
+                !is.na(amount) & is.finite(amount) & amount > 0 &
+                !is.na(current_balance) & is.finite(current_balance) & current_balance >= 0 &
+                type %in% c("deposit", "withdrawal")
+
+    if (verbose) {
+        for (i in which(!is_valid)) {
+            if (!has_8_columns[i]) {
+                cat("Row ", line_numbers[i], " skipped: expected 8 columns, found ",
+                    field_count[i], "\n", sep = "")
+            } else {
+                cat("Row ", line_numbers[i], " skipped: invalid or missing field(s) -> ",
+                    lines[i], "\n", sep = "")
+            }
+        }
+    }
+
+    transactions <- data.frame(
+        account_name = account_name,
+        account_number = sub("^\\+?0*([0-9])", "\\1", account_number),
+        date = date,
+        time = time_text,
+        currency = currency,
+        amount = round_money(amount),
+        type = type,
+        current_balance = round_money(current_balance),
+        stringsAsFactors = FALSE
+    )[is_valid, ]
+
+    errors_skipped <- sum(!is_valid)
+
+    if (php_only) transactions <- transactions[transactions$currency == "PHP", ]
+
+    transactions$datetime <- as.POSIXct(paste(format(transactions$date, "%d/%m/%Y"), transactions$time),
+                                        format = "%d/%m/%Y %H:%M:%S", tz = "UTC")
+    rownames(transactions) <- NULL
+
+    if (verbose) {
+        cat("Processing dataset... (",
+            format(rows_loaded, big.mark = ","), " rows loaded, ",
+            format(nrow(transactions), big.mark = ","), " filtered for PHP currency, ",
+            errors_skipped, " error(s) skipped)\n",
+            sep = "")
+    }
+
+    transactions
 }
 
 # Updates the transactions database
@@ -72,6 +202,8 @@ load_transactions <- function() {
 save_transactions <- function(transactions, account_name, account_number,
                         amount, type, new_balance) {
     now <- Sys.time()
+    amount <- round_money(amount)
+    new_balance <- round_money(new_balance)
 
     file_row <- data.frame(
         account_name = account_name,
@@ -84,6 +216,9 @@ save_transactions <- function(transactions, account_name, account_number,
         current_balance = sprintf("%.2f", new_balance)
     )
 
+    #create the file with its header row if it does not exist yet
+    if (!file.exists(path)) writeLines(CSV_HEADER, path)
+
     #append it to the end of the file
     write.table(file_row, path, sep = ",", append = TRUE,
                 col.names = FALSE, row.names = FALSE, quote = FALSE)
@@ -95,9 +230,9 @@ save_transactions <- function(transactions, account_name, account_number,
         date = as.Date(file_row$date, format = "%d/%m/%Y"),
         time = file_row$time,
         currency = "PHP",
-        amount = round(amount, 2),
+        amount = amount,
         type = type,
-        current_balance = round(new_balance, 2),
+        current_balance = new_balance,
         datetime = as.POSIXct(paste(file_row$date, file_row$time),
                  format = "%d/%m/%Y %H:%M:%S", tz = "UTC")
     )
@@ -151,13 +286,16 @@ is_valid_name <- function(name){
 }
 
 # Generates an account number for a new registration
-next_account_number <- function(transactions) {
-    numbers <- as.numeric(transactions$account_number)
+next_account_number <- function() {
+    # REQ-0001: next number after the highest in the file, counting every
+    # valid row (any currency), not just the PHP rows the program uses
+    all_rows <- load_transactions(php_only = FALSE, verbose = FALSE)
+    numbers <- as.numeric(all_rows$account_number)
 
     if (length(numbers) == 0) {
         return("1092000001")
     }
-    
+
     sprintf("%.0f", max(numbers) + 1)
 }
 
@@ -184,7 +322,7 @@ read_amount <- function(prompt, minimum = 0.01) {
 register <- function(transactions) {
     while (TRUE) {
         cat("\014")
-        cat("Register Account Name\n")
+        cat("Register Account\n")
         account_name <- trimws(read_input("Enter Account Name (First Last): "))
 
         if (!is_valid_name(account_name)) {
@@ -211,13 +349,13 @@ register <- function(transactions) {
             next
         }
 
-        acct_num <- next_account_number(transactions)
+        acct_num <- next_account_number()
 
         transactions <- save_transactions(transactions, account_name, acct_num,
                     deposit, "deposit", deposit)
 
-        cat("Account Created Successfuly!\n")
-        cat("Hi", account_name, "!\n")
+        cat("Account created successfully!\n")
+        cat("Account Number: ", acct_num, "\n", sep = "")
         cat("\n")
 
         choice <- read_input("Back to the Main Menu (Y/N)? ... ")
@@ -255,9 +393,9 @@ deposit <- function(transactions) {
         cat("Deposit Amount\n")
         accno <- read_input("Account Number: ")
 
-        #checks if account number doesn't exists
+        #checks if the account number exists
         if (!account_exists(transactions, accno)) {
-            cat("Account doesn't exists!\n")
+            cat("Account not found.\n")
 
             choice <- read_input("Back to the Main Menu (Y/N)? ... ")
 
@@ -305,9 +443,9 @@ withdraw <- function(transactions){
         cat("Withdraw Amount\n")
         accno <- read_input("Account Number: ")
 
-        #checks if account number doesn't exists
+        #checks if the account number exists
         if (!account_exists(transactions, accno)) {
-            cat("Account doesn't exists!")
+            cat("Account not found.\n")
 
             choice <- read_input("Back to the Main Menu (Y/N)? ... ")
 
@@ -516,8 +654,10 @@ show_interest_amt <- function(transactions) {
 
         cat(sprintf("%-4s| %-9s| %-10s|\n", "Day", "Interest", "Balance"))
         for (i in 1:days){
-            daily_interest <- current_bal * (interest_rate / 365)
-            current_bal <- current_bal + daily_interest
+            #daily interest is rounded to 2 decimals and added to the balance
+            #(the same method as Report 2)
+            daily_interest <- round_money(current_bal * (interest_rate / 365))
+            current_bal <- round_money(current_bal + daily_interest)
             cat(sprintf("%-4d| %-9.2f| %-10.2f|\n", i, daily_interest, current_bal))
         }
 
@@ -578,6 +718,12 @@ generate_reports <- function(transactions) {
         }
 
         # choice == 2
+        if (nrow(transactions) == 0) {
+            cat("No data loaded yet. Please select [1] Load the file first.\n")
+            read_input("Press Enter to continue...")
+            next
+        }
+
         cat("\nGenerating reports...\n")
         cat("Outputs saved to individual files...\n\n")
 
@@ -609,11 +755,23 @@ generate_reports <- function(transactions) {
     transactions
 }
 
-# Formats money: 1234567.891 -> "1,234,567.89" (NA -> "N/A")
+# Formats money: 1234567.891 -> "1,234,567.89"
 format_money <- function(x) {
-    formatted <- formatC(round(x, 2), format = "f", digits = 2, big.mark = ",")
-    formatted[is.na(x)] <- "N/A"
-    formatted
+    formatC(round_money(x), format = "f", digits = 2, big.mark = ",")
+}
+
+# Quotes a CSV field only when it contains a comma or a quote
+csv_field <- function(text) {
+    needs_quotes <- grepl("[,\"]", text)
+    text[needs_quotes] <- paste0("\"", gsub("\"", "\"\"", text[needs_quotes], fixed = TRUE), "\"")
+    text
+}
+
+# Writes lines with "\n" line endings on every operating system
+write_lines_lf <- function(lines, filename) {
+    con <- file(filename, open = "wb")
+    on.exit(close(con))
+    writeLines(lines, con, sep = "\n", useBytes = TRUE)
 }
 
 # Writes a report to a CSV file and shows a 2-row preview
@@ -624,7 +782,7 @@ format_money <- function(x) {
 # - title: title shown on screen
 # - money_columns: names of the columns to format as "1,234,567.89"
 write_report <- function(report, filename, title, money_columns) {
-    output <- report  
+    output <- report
 
     for (column in money_columns) {
         output[[column]] <- format_money(output[[column]])
@@ -637,10 +795,12 @@ write_report <- function(report, filename, title, money_columns) {
         }
     }
 
-    # every field becomes text so every field is quoted the same way
     output[] <- lapply(output, as.character)
 
-    write.csv(output, filename, row.names = FALSE)
+    # one line per row; a field is quoted only if it contains a comma
+    body <- if (nrow(output) == 0) character(0) else
+        do.call(paste, c(lapply(output, csv_field), sep = ","))
+    write_lines_lf(c(paste(names(output), collapse = ","), body), filename)
 
     cat(title, "\n")
     print(head(output, 2), row.names = FALSE)
@@ -658,25 +818,59 @@ write_summary <- function(transactions, report2, filename) {
 
     current_balances <- numeric(length(accounts))
     for (i in seq_along(accounts)) {
-        current_balances[i] <- get_current_balance(transactions, accounts[i])
+        account_rows <- transactions[transactions$account_number == accounts[i], ]
+        current_balances[i] <- latest_row(account_rows)$current_balance
     }
 
     is_deposit <- transactions$type == "deposit"
-    is_withdrawal <- transactions$type == "withdrawal"  
+    is_withdrawal <- transactions$type == "withdrawal"
 
     json <- sprintf(paste0(
-        "{\"total_accounts\": %d, \"total_deposits\": %.2f, ",
-        "\"total_withdrawals\": %.2f, \"total_balance\": %.2f, ",
-        "\"total_interest_expense\": %.2f}"),
+        "{\n",
+        "  \"total_accounts\": %d,\n",
+        "  \"total_deposits\": %.2f,\n",
+        "  \"total_withdrawals\": %.2f,\n",
+        "  \"total_balance\": %.2f,\n",
+        "  \"total_interest_expense\": %.2f\n",
+        "}"),
         length(accounts),
-        sum(transactions$amount[is_deposit]),
-        sum(transactions$amount[is_withdrawal]),
-        sum(current_balances),
-        sum(report2$ExpectedInterest))
+        round_money(sequential_sum(transactions$amount[is_deposit])),
+        round_money(sequential_sum(transactions$amount[is_withdrawal])),
+        round_money(sequential_sum(current_balances)),
+        round_money(sequential_sum(report2$ExpectedInterest)))
 
-    writeLines(json, filename)
+    write_lines_lf(json, filename)
 
     cat("Summary State (", filename, "):\n", json, "\n", sep = "")
+}
+
+# Returns the account's rows sorted by date and time
+# (rows with the same date and time keep their file order)
+chronological <- function(rows) {
+    rows[order(rows$datetime, method = "radix"), ]
+}
+
+# Returns the most recent transaction (by date and time) as a 1-row data frame
+latest_row <- function(rows) {
+    sorted <- chronological(rows)
+    sorted[nrow(sorted), ]
+}
+
+# Interest for a number of days at 5% per annum.
+# Each day: interest = balance x (0.05 / 365), rounded to 2 decimals and
+# added to the balance (the same method as Show Interest Amount).
+compute_expected_interest <- function(starting_balance, days = 30) {
+    daily_rate <- 0.05 / 365
+    balance <- starting_balance
+    total_interest <- 0
+
+    for (day in seq_len(days)) {
+        interest <- round_money(balance * daily_rate)
+        total_interest <- round_money(total_interest + interest)
+        balance <- round_money(balance + interest)
+    }
+
+    total_interest
 }
 
 # Report 1: Banking Privilege Tiers
@@ -694,13 +888,13 @@ build_report1 <- function(transactions, reference_date = max(transactions$date))
     month_start <- as.Date(format(month_end, "%Y-%m-01"))
     days <- seq(month_start, month_end, by = "day") #vector of every date from last month
 
-    accounts <- unique(transactions$account_number) #vector of unique account numbers
+    accounts <- unique(transactions$account_number) #in order of first appearance
 
     rows <- list()
 
     for (acct in accounts) {
-        #stores all the transactions made by an account
-        acct_rows <- transactions[transactions$account_number == acct, ]
+        #all transactions made by an account, oldest first
+        acct_rows <- chronological(transactions[transactions$account_number == acct, ])
 
         end_of_day <- numeric(length(days)) #end of day balances
 
@@ -711,11 +905,10 @@ build_report1 <- function(transactions, reference_date = max(transactions$date))
         }
 
         rows[[acct]] <- data.frame(
-            AccountNumber = acct,
-            AccountName = acct_rows$account_name[1],
+            AccountName = tail(acct_rows$account_name, 1),
             AccountAge = as.integer(reference_date - acct_rows$date[1]),
             CurrentBalance = tail(acct_rows$current_balance, 1),
-            AverageDailyBalance = sum(end_of_day) / length(days)
+            AverageDailyBalance = round_money(sequential_sum(end_of_day) / length(days))
         )
     }
 
@@ -724,14 +917,14 @@ build_report1 <- function(transactions, reference_date = max(transactions$date))
     report$PrivilegeTier <- ifelse(report$AverageDailyBalance < 500000, "Silver",
                             ifelse(report$AverageDailyBalance < 1000000, "Gold", "Platinum"))
 
-    report <- report[order(-report$AverageDailyBalance, report$AccountNumber), ]
-    report$AccountNumber <- NULL #only used for tie-breaking
+    #descending ADB; ties keep the order in which accounts first appear in the file
+    report <- report[order(-report$AverageDailyBalance, method = "radix"), ]
     rownames(report) <- NULL
     report
 }
 
 # Report 2: Interest Expense Projection
-# Simple interest over 30 days at 5% per annum, based on the latest current balance
+# Interest over the next 30 days at 5% per annum, based on the latest balance
 #
 # Returns: data frame sorted descending by ExpectedInterest
 build_report2 <- function(transactions) {
@@ -740,24 +933,24 @@ build_report2 <- function(transactions) {
     rows <- list() #each rows of the report will be stored here
 
     for (acct in accounts) {
-        acct_rows <- transactions[transactions$account_number == acct, ]
-        current_balance <- tail(acct_rows$current_balance, 1)
+        latest <- latest_row(transactions[transactions$account_number == acct, ])
+        current_balance <- latest$current_balance
 
-        #daily interest = balance x (0.05 / 365), for 30 days
-        expected_interest <- current_balance * (0.05 / 365) * 30
+        if (current_balance < 10000) next
 
         rows[[acct]] <- data.frame(
-            AccountNumber = acct,
-            AccountName = acct_rows$account_name[1],
+            AccountName = latest$account_name,
             CurrentBalance = current_balance,
-            ExpectedInterest = expected_interest
+            ExpectedInterest = compute_expected_interest(current_balance, 30)
         )
     }
 
     report <- do.call(rbind, rows)
-    report <- report[report$CurrentBalance >= 10000, ]
-    report <- report[order(-report$ExpectedInterest, report$AccountNumber), ]
-    report$AccountNumber <- NULL
+    if (is.null(report)) {
+        report <- data.frame(AccountName = character(0), CurrentBalance = numeric(0),
+                             ExpectedInterest = numeric(0))
+    }
+    report <- report[order(-report$ExpectedInterest, method = "radix"), ]
     rownames(report) <- NULL
     report
 }
@@ -767,42 +960,70 @@ build_report2 <- function(transactions) {
 #
 # Returns: data frame sorted ascending by Date, Suspicious first within a date
 build_report3 <- function(transactions) {
-    #unique (account number, date) pairs = the rows of the report
+    #unique (account number, date) pairs = the rows of the report, in file order
     account_days <- unique(transactions[, c("account_number", "date")])
 
-    rows <- list()
+    #row numbers of each account-day, found once instead of searching
+    #the whole table on every pass of the loop
+    keys <- paste(transactions$account_number, transactions$date)
+    rows_by_key <- split(seq_len(nrow(transactions)), keys)
 
-    for (i in seq_len(nrow(account_days))) {
-        acct <- account_days$account_number[i]
+    n <- nrow(account_days)
+
+    #columns as plain vectors: indexing a vector is much faster than
+    #subsetting a data frame inside a loop
+    amounts <- transactions$amount
+    types <- transactions$type
+    datetimes <- transactions$datetime
+    account_names <- transactions$account_name
+
+    #one vector per column, filled in the loop and combined at the end
+    #(building 8,000 one-row data frames and binding them is very slow in R)
+    names_col <- character(n)
+    withdrawals_col <- numeric(n)
+    deposit_count_col <- integer(n)
+    deposits_col <- numeric(n)
+    velocity_col <- numeric(n)
+    flag_col <- character(n)
+
+    for (i in seq_len(n)) {
         day <- account_days$date[i]
+        key <- paste(account_days$account_number[i], day)
 
-        #transactions made by an account on this day
-        todays <- transactions[transactions$account_number == acct & transactions$date == day, ]
+        #row numbers of this account's transactions on this day
+        idx <- rows_by_key[[key]]
+        is_withdrawal <- types[idx] == "withdrawal"
+        is_deposit <- types[idx] == "deposit"
 
-        withdrawals <- todays[todays$type == "withdrawal", ]
-        deposits <- todays[todays$type == "deposit", ]
+        twa <- round_money(sequential_sum(amounts[idx][is_withdrawal]))
+        tda <- round_money(sequential_sum(amounts[idx][is_deposit]))
 
-        twa <- sum(withdrawals$amount)
-        tda <- sum(deposits$amount)
-        tov <- if (tda == 0) NA else twa / tda * 100 #NA = no deposits that day (shown as N/A)
+        #no deposits that day: velocity is shown as 0.00
+        raw_velocity <- if (tda > 0) twa / tda * 100 else 0
 
-        rfl <- if (twa >= 500000 || (!is.na(tov) && tov >= 90)) "Suspicious" else "Normal"
+        #name on the most recent transaction of the day
+        latest <- idx[order(datetimes[idx], method = "radix")][length(idx)]
 
-        rows[[i]] <- data.frame(
-            AccountNumber          = acct,
-            AccountName            = todays$account_name[1],
-            Date                   = day,
-            TotalWithdrawalAmounts = twa,
-            NumberOfDeposits       = nrow(deposits),
-            TotalDepositAmounts    = tda,
-            TurnoverVelocity       = tov,
-            RiskFlagLevel          = rfl
-        )
+        names_col[i] <- account_names[latest]
+        withdrawals_col[i] <- twa
+        deposit_count_col[i] <- sum(is_deposit)
+        deposits_col[i] <- tda
+        velocity_col[i] <- round_money(raw_velocity)
+        flag_col[i] <- if (twa >= 500000 || raw_velocity >= 90) "Suspicious" else "Normal"
     }
 
-    report <- do.call(rbind, rows)
-    report <- report[order(report$Date, report$RiskFlagLevel != "Suspicious", report$AccountNumber), ]
-    report$AccountNumber <- NULL
+    report <- data.frame(
+        AccountName            = names_col,
+        Date                   = account_days$date,
+        TotalWithdrawalAmounts = withdrawals_col,
+        NumberOfDeposits       = deposit_count_col,
+        TotalDepositAmounts    = deposits_col,
+        TurnoverVelocity       = velocity_col,
+        RiskFlagLevel          = flag_col
+    )
+
+    #by date, Suspicious first; ties keep the order of first appearance in the file
+    report <- report[order(report$Date, report$RiskFlagLevel != "Suspicious", method = "radix"), ]
     rownames(report) <- NULL
     report
 }
@@ -820,20 +1041,18 @@ build_report4 <- function(transactions) {
         acct_rows <- transactions[transactions$account_number == acct, ]
 
         transaction_count <- nrow(acct_rows)
-        total_amount_moved <- sum(acct_rows$amount) #deposits + withdrawals
+        total_amount_moved <- round_money(sequential_sum(acct_rows$amount)) #deposits + withdrawals
 
         rows[[acct]] <- data.frame(
-            AccountNumber = acct,
-            AccountName = acct_rows$account_name[1],
+            AccountName = latest_row(acct_rows)$account_name,
             TransactionCount = transaction_count,
             TotalAmountMoved = total_amount_moved,
-            AverageTransactionSize = total_amount_moved / transaction_count
+            AverageTransactionSize = round_money(total_amount_moved / transaction_count)
         )
     }
 
     report <- do.call(rbind, rows)
-    report <- report[order(-report$TotalAmountMoved, report$AccountNumber), ]
-    report$AccountNumber <- NULL
+    report <- report[order(-report$TotalAmountMoved, method = "radix"), ]
     rownames(report) <- NULL
     report
 }
