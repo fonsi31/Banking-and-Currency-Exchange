@@ -21,7 +21,6 @@ import java.time.temporal.ChronoUnit
 const val ANNUAL_INTEREST_RATE = 0.05
 const val DAYS_PER_YEAR = 365
 const val BASE_CURRENCY_INDEX = 0
-const val STARTING_BALANCE = 1000.00
 const val CSV_FILE_PATH = "bank_transactions.csv"
 const val MIN_INITIAL_DEPOSIT = 5000.00
 const val DEFAULT_START_ACCOUNT_NUMBER = 1092000001L
@@ -30,9 +29,14 @@ const val MIN_INTEREST_BALANCE = 10_000.00
 const val SUSPICIOUS_WITHDRAWAL_THRESHOLD = 500_000.00
 const val SUSPICIOUS_VELOCITY_THRESHOLD = 90.0
 
-val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+val DATE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(java.time.format.ResolverStyle.STRICT)
 val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
-val TIME_PARSE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("H:mm:ss")
+val TIME_PARSE_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("H:mm:ss").withResolverStyle(java.time.format.ResolverStyle.STRICT)
+
+/** Orders by date then time; sortedWith is stable so ties keep file order. */
+val TXN_ORDER: Comparator<BankTransaction> = compareBy<BankTransaction> { it.date }.thenBy { it.time }
+
+fun List<BankTransaction>.latest(): BankTransaction = this.sortedWith(TXN_ORDER).last()
 
 /** [rate] is how many PHP one unit of this currency is worth. */
 data class Currency(val name: String, val code: String, var rate: Double)
@@ -116,23 +120,17 @@ class AccountStore(private val csvFile: File = File(CSV_FILE_PATH)) {
     private fun loadAccountsFromCsv() {
         if (!csvFile.exists()) return
 
-        csvFile.useLines { lines ->
-            lines.drop(1).forEach { line ->
-                val parts = line.split(",")
-                if (parts.size < 8) return@forEach
+        // Highest account number is taken from every valid row (any currency).
+        val all = loadTransactions(csvFile, verbose = false, phpOnly = false).transactions
+        for (t in all) if (t.accountNumber > highestAccountNumber) highestAccountNumber = t.accountNumber
 
-                val name = parts[0].trim()
-                val accNum = parts[1].trim().toLongOrNull() ?: return@forEach
-                val balance = parts[7].trim().toDoubleOrNull() ?: return@forEach
-
-                if (accNum > highestAccountNumber) {
-                    highestAccountNumber = accNum
-                }
-                accounts[accNum] = Account(accNum, name, balance)
+        // Current balance = balance of the chronologically latest PHP transaction.
+        all.filter { it.currency == "PHP" }
+            .groupBy { it.accountNumber }
+            .forEach { (accNum, txns) ->
+                val last = txns.latest()
+                accounts[accNum] = Account(accNum, last.accountName, last.currentBalance)
             }
-
-        }
-
     }
     fun nextAccountNumber(): Long {
         highestAccountNumber += 1
@@ -184,9 +182,13 @@ class AccountStore(private val csvFile: File = File(CSV_FILE_PATH)) {
 }
 
 
-fun loadTransactions(csvFile: File = File(CSV_FILE_PATH)): LoadResult {
+fun loadTransactions(
+    csvFile: File = File(CSV_FILE_PATH),
+    verbose: Boolean = true,
+    phpOnly: Boolean = true
+): LoadResult {
     if (!csvFile.exists()) {
-        println("Error: ${csvFile.path} not found.")
+        if (verbose) println("Error: ${csvFile.path} not found.")
         return LoadResult(emptyList(), 0, 0, 0)
     }
 
@@ -203,7 +205,7 @@ fun loadTransactions(csvFile: File = File(CSV_FILE_PATH)): LoadResult {
 
             val parts = rawLine.split(",")
             if (parts.size < 8) {
-                println("Row $lineNumber skipped: expected 8 columns, found ${parts.size}")
+                if (verbose) println("Row $lineNumber skipped: expected 8 columns, found ${parts.size}")
                 skippedErrors++
                 return@forEachIndexed
             }
@@ -220,16 +222,17 @@ fun loadTransactions(csvFile: File = File(CSV_FILE_PATH)): LoadResult {
 
             val isValidType = type == "deposit" || type == "withdrawal"
             if (name.isEmpty() || accNum == null || date == null || time == null ||
-                amount == null || !amount.isFinite() || balance == null || !balance.isFinite() ||
+                amount == null || !amount.isFinite() || amount <= 0.0 ||
+                balance == null || !balance.isFinite() || balance < 0.0 ||
                 !isValidType
             ) {
-                println("Row $lineNumber skipped: invalid or missing field(s) -> $rawLine")
+                if (verbose) println("Row $lineNumber skipped: invalid or missing field(s) -> $rawLine")
                 skippedErrors++
                 return@forEachIndexed
             }
 
 
-            if (currency != "PHP") {
+            if (phpOnly && currency != "PHP") {
                 skippedNonPhp++
                 return@forEachIndexed
             }
@@ -261,7 +264,7 @@ fun generateReport1(
 
 
     val latestDate = transactions.maxOf { it.date }
-    val lastMonth = YearMonth.from(latestDate)
+    val lastMonth = YearMonth.from(latestDate).minusMonths(1)
     val monthStart = lastMonth.atDay(1)
     val daysInMonth = lastMonth.lengthOfMonth()
 
@@ -272,7 +275,7 @@ fun generateReport1(
 
     for ((_, accountTxns) in byAccount) {
 
-        val sorted = accountTxns.sortedWith(compareBy<BankTransaction> { it.date }.thenBy { it.time })
+        val sorted = accountTxns.sortedWith(TXN_ORDER)
 
         val name = sorted.last().accountName
         val openedDate = sorted.first().date
@@ -347,7 +350,7 @@ fun generateReport2(
 
     for ((_, accountTxns) in byAccount) {
 
-        val latestTxn = accountTxns.maxWith(compareBy<BankTransaction> { it.date }.thenBy { it.time })
+        val latestTxn = accountTxns.latest()
 
         val name = latestTxn.accountName
         val currentBalance = latestTxn.currentBalance
@@ -392,7 +395,7 @@ fun generateReport3(
 
     for ((key, dayTxns) in byAccountAndDate) {
         val date = key.second
-        val name = dayTxns.last().accountName
+        val name = dayTxns.latest().accountName
 
 
         val withdrawals = dayTxns.filter { it.type == "withdrawal" }
@@ -403,16 +406,13 @@ fun generateReport3(
         val totalDeposits = deposits.sumOf { it.amount }.roundMoney()
 
 
-        val turnoverVelocity = if (totalDeposits > 0.0) {
-            ((totalWithdrawals / totalDeposits) * 100.0).roundMoney()
-        } else {
-            0.0
-        }
+        val rawVelocity = if (totalDeposits > 0.0) (totalWithdrawals / totalDeposits) * 100.0 else 0.0
+        val turnoverVelocity = rawVelocity.roundMoney()
 
 
         val riskFlag = if (
             totalWithdrawals >= SUSPICIOUS_WITHDRAWAL_THRESHOLD ||
-            turnoverVelocity >= SUSPICIOUS_VELOCITY_THRESHOLD
+            rawVelocity >= SUSPICIOUS_VELOCITY_THRESHOLD
         ) {
             "Suspicious"
         } else {
@@ -435,7 +435,7 @@ fun generateReport3(
 
     val sortedRows = rows.sortedWith(
         compareBy<SuspiciousBehaviorRow> { it.date }
-            .thenByDescending { it.riskFlagLevel }
+            .thenByDescending { if (it.riskFlagLevel == "Suspicious") 1 else 0 }
     )
 
     val csvContent = buildString {
@@ -538,7 +538,7 @@ fun generateSummaryJson(
 
     val totalBalance = byAccount.values
         .sumOf { accountTxns ->
-            accountTxns.maxWith(compareBy<BankTransaction> { it.date }.thenBy { it.time }).currentBalance
+            accountTxns.latest().currentBalance
         }
         .roundMoney()
 
@@ -632,14 +632,6 @@ fun promptYesNo(label: String): Boolean {
     }
 }
 
-fun Account.requireRegistered(): Boolean {
-    if (name == null) {
-        println("No account registered yet. Select [1] Register Account Name first.")
-        return false
-    }
-    return true
-}
-
 fun promptAmountAtLeast(label: String, min: Double): Double {
     while (true) {
         val value = promptAmount(label)
@@ -688,7 +680,17 @@ class RegisterAccount(private val store: AccountStore) : Transaction {
     override fun execute() {
         do {
             println("Register Account")
-            val name = promptNonBlank("Account Name: ")
+            var name: String
+            while (true) {
+                name = promptNonBlank("Account Name (First name Last name): ").replace(Regex("\\s+"), " ")
+                when {
+                    name.contains(",") || name.contains("\"") -> println("Name must not contain commas or quotes.")
+                    name.split(" ").size < 2 -> println("Enter both a first name and a last name.")
+                    store.accounts.values.any { it.name.equals(name, ignoreCase = true) } ->
+                        println("An account with that name already exists.")
+                    else -> break
+                }
+            }
             val initialDeposit = promptAmountAtLeast(
                 "Initial Deposit (min ${MIN_INITIAL_DEPOSIT.money()}): ",
                 MIN_INITIAL_DEPOSIT
@@ -895,7 +897,6 @@ class GenerateReports : Transaction {
 
                     val report2 = generateReport2(data)
                     printReport2Preview(report2)
-                    println("Ready to generate reports from ${data.size} PHP transactions.")
                     val report3 = generateReport3(data)
                     printReport3Preview(report3)
                     println()
