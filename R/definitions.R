@@ -242,7 +242,7 @@ deposit <- function(transactions) {
 
         #checks if account number doesn't exists
         if (!account_exists(transactions, accno)) {
-            cat("Account doesn't exists!")
+            cat("Account doesn't exists!\n")
 
             choice <- readline("Back to the Main Menu (Y/N)? ... ")
 
@@ -301,14 +301,14 @@ withdraw <- function(transactions){
             }
             next
         }
-
+  
         current_balance <- get_current_balance(transactions, accno)
 
         cat(sprintf("Current Balance: %.2f\n", current_balance))
         cat("Currency: PHP\n")
         cat("\n")
 
-        withdraw_amt <- read_amount()
+        withdraw_amt <- read_amount("Withdraw Amount: ")
 
         #checks if current balance can handle withdraw amount
         if (withdraw_amt > current_balance) {
