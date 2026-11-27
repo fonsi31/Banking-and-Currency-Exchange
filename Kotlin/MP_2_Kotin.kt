@@ -120,7 +120,7 @@ class AccountStore(private val csvFile: File = File(CSV_FILE_PATH)) {
     private fun loadAccountsFromCsv() {
         if (!csvFile.exists()) return
 
-        // Highest account number is taken from every valid row (any currency).
+        // Highest account number is taken from every valid row
         val all = loadTransactions(csvFile, verbose = false, phpOnly = false).transactions
         for (t in all) if (t.accountNumber > highestAccountNumber) highestAccountNumber = t.accountNumber
 
@@ -181,7 +181,7 @@ class AccountStore(private val csvFile: File = File(CSV_FILE_PATH)) {
 
 }
 
-
+//loads the file once
 fun loadTransactions(
     csvFile: File = File(CSV_FILE_PATH),
     verbose: Boolean = true,
@@ -264,16 +264,16 @@ fun generatePrivilegeTierReport(
 
 
     val latestDate = transactions.maxOf { it.date }
-    val lastMonth = YearMonth.from(latestDate).minusMonths(1)
+    val lastMonth = YearMonth.from(latestDate).minusMonths(1) //calendar month before current month
     val monthStart = lastMonth.atDay(1)
     val daysInMonth = lastMonth.lengthOfMonth()
 
 
-    val byAccount = transactions.groupBy { it.accountNumber }
+    val byAccount = transactions.groupBy { it.accountNumber } //group transactions by account num
 
     val rows = mutableListOf<PrivilegeTierRow>()
 
-    for ((_, accountTxns) in byAccount) {
+    for ((_, accountTxns) in byAccount) { //ignoring the key accountNumber
 
         val sorted = accountTxns.sortedWith(TXN_ORDER)
 
@@ -320,8 +320,8 @@ fun generatePrivilegeTierReport(
 
 
     val csvContent = buildString {
-        appendLine("AccountName,AccountAge,CurrentBalance,AverageDailyBalance,PrivilegeTier")
-        for (r in sortedRows) {
+        appendLine("AccountName,AccountAge,CurrentBalance,AverageDailyBalance,PrivilegeTier") //header
+        for (r in sortedRows) { //loops through each row, joins the formatted columns with commas
             appendLine(
                 listOf(
                     csvField(r.accountName),
@@ -348,7 +348,7 @@ fun generateInterestProjectionReport(
     val byAccount = transactions.groupBy { it.accountNumber }
     val rows = mutableListOf<InterestProjectionRow>()
 
-    for ((_, accountTxns) in byAccount) {
+    for ((_, accountTxns) in byAccount) { //ignore key again
 
         val latestTxn = accountTxns.latest()
 
