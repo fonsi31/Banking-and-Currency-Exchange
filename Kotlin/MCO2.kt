@@ -256,7 +256,7 @@ fun loadTransactions(
 }
 
 
-fun generateReport1(
+fun generatePrivilegeTierReport(
     transactions: List<BankTransaction>,
     outputFile: File = File("report1_banking_privilege_tiers.csv")
 ): List<PrivilegeTierRow> {
@@ -338,7 +338,7 @@ fun generateReport1(
     return sortedRows
 }
 
-fun generateReport2(
+fun generateInterestProjectionReport(
     transactions: List<BankTransaction>,
     outputFile: File = File("report2_interest_expense_projection.csv")
 ): List<InterestProjectionRow> {
@@ -383,7 +383,7 @@ fun generateReport2(
     return sortedRows
 }
 
-fun generateReport3(
+fun generateSuspiciousBehaviorReport(
     transactions: List<BankTransaction>,
     outputFile: File = File("report3_suspicious_client_behavior.csv")
 ): List<SuspiciousBehaviorRow> {
@@ -459,7 +459,7 @@ fun generateReport3(
     return sortedRows
 }
 
-fun generateReport4(
+fun generateMonthlyCashFlowReport(
     transactions: List<BankTransaction>,
     outputFile: File = File("report4_monthly_cash_flow.csv")
 ): List<MonthlyCashFlowRow> {
@@ -892,16 +892,14 @@ class GenerateReports : Transaction {
                     println("Outputs saved to individual files...")
                     println()
 
-                    val report1 = generateReport1(data)
-                    printReport1Preview(report1)
-
-                    val report2 = generateReport2(data)
-                    printReport2Preview(report2)
-                    val report3 = generateReport3(data)
-                    printReport3Preview(report3)
-                    println()
-                    val report4 = generateReport4(data)
-                    printReport4Preview(report4)
+                    val report1 = generatePrivilegeTierReport(data)
+                    printPrivilegeTierPreview(report1)
+                    val report2 = generateInterestProjectionReport(data)
+                    printInterestProjectionPreview(report2)
+                    val report3 = generateSuspiciousBehaviorReport(data)
+                    printSuspiciousBehaviorPreview(report3)
+                    val report4 = generateMonthlyCashFlowReport(data)
+                    printMonthlyCashFlowPreview(report4)
 
                     val summaryJson = generateSummaryJson(data, report2)
                     println("Summary State (summary.json):")
@@ -913,7 +911,7 @@ class GenerateReports : Transaction {
         }
     }
 
-    fun printReport1Preview(rows: List<PrivilegeTierRow>) {
+    fun printPrivilegeTierPreview(rows: List<PrivilegeTierRow>) {
         println("Report 1: Banking Privilege Tiers")
         println("%-22s | %-10s | %-14s | %-19s | %s".format(
             Locale.US, "AccountName", "AccountAge", "CurrentBalance", "AverageDailyBalance", "PrivilegeTier"
@@ -932,7 +930,7 @@ class GenerateReports : Transaction {
         println()
     }
 
-    fun printReport2Preview(rows: List<InterestProjectionRow>) {
+    fun printInterestProjectionPreview(rows: List<InterestProjectionRow>) {
         println("Report 2: Interest Expense Projection")
         println("%-22s | %-14s | %s".format(
             Locale.US, "AccountName", "CurrentBalance", "ExpectedInterest"
@@ -948,46 +946,48 @@ class GenerateReports : Transaction {
         println("(Full table exported to report2_interest_expense_projection.csv)")
         println()
     }
+
+    fun printSuspiciousBehaviorPreview(rows: List<SuspiciousBehaviorRow>) {
+        println("Report 3: Suspicious Client Behavior")
+        println("%-20s | %-10s | %-15s | %-8s | %-15s | %-10s | %s".format(
+            Locale.US, "AccountName", "Date", "TotalWithdrawal", "Deposits", "TotalDeposit", "Velocity%", "RiskFlag"
+        ))
+        rows.take(2).forEach { r ->
+            println("%-20s | %-10s | %-15s | %-8d | %-15s | %-10s | %s".format(
+                Locale.US,
+                r.accountName,
+                r.date.format(DATE_FORMATTER),
+                r.totalWithdrawalAmounts.moneyComma(),
+                r.numberOfDeposits,
+                r.totalDepositAmounts.moneyComma(),
+                r.turnoverVelocity.moneyComma(),
+                r.riskFlagLevel
+            ))
+        }
+        println("(Full table exported to report3_suspicious_client_behavior.csv)")
+        println()
+    }
+    fun printMonthlyCashFlowPreview(rows: List<MonthlyCashFlowRow>) {
+        println("Report 4: Monthly Cash Flow Summary")
+        println("%-8s | %-12s | %-16s | %-16s | %s".format(
+            Locale.US, "Month", "Transactions", "TotalDeposits", "TotalWithdrawals", "NetCashFlow"
+        ))
+        rows.take(2).forEach { r ->
+            println("%-8s | %-12d | %-16s | %-16s | %s".format(
+                Locale.US,
+                r.month.toString(),
+                r.transactionCount,
+                r.totalDeposits.moneyComma(),
+                r.totalWithdrawals.moneyComma(),
+                r.netCashFlow.moneyComma()
+            ))
+        }
+        println("(Full table exported to report4_monthly_cash_flow.csv)")
+        println()
+    }
 }
 
-fun printReport3Preview(rows: List<SuspiciousBehaviorRow>) {
-    println("Report 3: Suspicious Client Behavior")
-    println("%-20s | %-10s | %-15s | %-8s | %-15s | %-10s | %s".format(
-        Locale.US, "AccountName", "Date", "TotalWithdrawal", "Deposits", "TotalDeposit", "Velocity%", "RiskFlag"
-    ))
-    rows.take(2).forEach { r ->
-        println("%-20s | %-10s | %-15s | %-8d | %-15s | %-10s | %s".format(
-            Locale.US,
-            r.accountName,
-            r.date.format(DATE_FORMATTER),
-            r.totalWithdrawalAmounts.moneyComma(),
-            r.numberOfDeposits,
-            r.totalDepositAmounts.moneyComma(),
-            r.turnoverVelocity.moneyComma(),
-            r.riskFlagLevel
-        ))
-    }
-    println("(Full table exported to report3_suspicious_client_behavior.csv)")
-    println()
-}
-fun printReport4Preview(rows: List<MonthlyCashFlowRow>) {
-    println("Report 4: Monthly Cash Flow Summary")
-    println("%-8s | %-12s | %-16s | %-16s | %s".format(
-        Locale.US, "Month", "Transactions", "TotalDeposits", "TotalWithdrawals", "NetCashFlow"
-    ))
-    rows.take(2).forEach { r ->
-        println("%-8s | %-12d | %-16s | %-16s | %s".format(
-            Locale.US,
-            r.month.toString(),
-            r.transactionCount,
-            r.totalDeposits.moneyComma(),
-            r.totalWithdrawals.moneyComma(),
-            r.netCashFlow.moneyComma()
-        ))
-    }
-    println("(Full table exported to report4_monthly_cash_flow.csv)")
-    println()
-}
+
 
 // ---------------------------------------------------------------------------
 // Main menu
