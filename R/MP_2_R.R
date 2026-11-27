@@ -21,37 +21,38 @@ exchange_rates <- c(
     "Chinese Yuan Renminni (CNY)" = 0.11
 )
 
-# registered accounts will be stored here upon runtime
-accounts <- load_accounts()
+# all transactions (e.g deposit, withdrawal, registration) will be stored here upon run-time
+transactions <- load_transactions()
 
 # Main program loop
-# Repeats until the user selects option 7 (Exit)
+# Repeats until the user selects option 8 (Exit)
 while (TRUE) {
     cat("\014") #clears terminal
     main_menu() #displays main menu
-    choice <- readline("choice: ") #gets user input
+    choice <- read_input("choice: ") #gets user input
 
     #checks if the user inputs a valid int and if it is within range
     if (!grepl("^-?[0-9]+$", choice) ||
-    as.integer(choice) < 1 || as.integer(choice) > 7) {
+    as.integer(choice) < 1 || as.integer(choice) > 8) {
         cat("Invalid Input!\n")
-        readline("Press Enter to continue...")
+        read_input("Press Enter to continue...")
         next
     }
 
     choice <- as.integer(choice) #parse choice to integer
     #user exits
-    if (choice == 7) {
+    if (choice == 8) {
         break
     }
 
     #switch case
     switch(choice,
-        accounts <- register(accounts),
-        accounts <- deposit(accounts),
-        accounts <- withdraw(accounts),
+        transactions <- register(transactions),
+        transactions <- deposit(transactions),
+        transactions <- withdraw(transactions),
         currency_exchange(exchange_rates),
         exchange_rates <- record_exchange_rate(exchange_rates),
-        show_interest_amt(accounts),
+        show_interest_amt(transactions),
+        transactions <- generate_reports(transactions)
     )
 }
