@@ -1,12 +1,12 @@
 /********************
  * ExchangeRates.java
- * Stores the recorded exchange rates, fixes PHP as the base
+ * Keeps the recorded exchange rates, treats PHP as the base
  * currency, and converts between currencies.
  ********************/
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.EnumMap; //Using enum map of the currency to get easier access to each one.
+import java.util.EnumMap; // EnumMap so each currency is easy to look up
 import java.util.Map;
 
 public class ExchangeRates 
@@ -46,7 +46,7 @@ public class ExchangeRates
     public ExchangeRates() 
     {
         ratesToBase.put(BASE, BigDecimal.ONE); 
-        // Default rates
+        // starting rates
         ratesToBase.put(Currency.USD, new BigDecimal("62.00"));
         ratesToBase.put(Currency.JPY, new BigDecimal("0.40"));
         ratesToBase.put(Currency.GBP, new BigDecimal("84.00"));
@@ -79,7 +79,7 @@ public class ExchangeRates
 
     public boolean canConvert(Currency from, Currency to) 
     {
-        return from == to || (hasRate(from) && hasRate(to)); // Checks if both currencies have recorded rates available
+        return from == to || (hasRate(from) && hasRate(to)); // both currencies need a recorded rate
     }
 
     public BigDecimal convert(BigDecimal amount, Currency from, Currency to) 
@@ -93,8 +93,8 @@ public class ExchangeRates
             return amount.setScale(2, RoundingMode.HALF_UP);
         }
         
-        BigDecimal inBase = amount.multiply(ratesToBase.get(from)); // Converts source currency amount to base currency (PHP)
+        BigDecimal inBase = amount.multiply(ratesToBase.get(from)); // source amount -> PHP first
         return inBase.divide(ratesToBase.get(to), WORKING_SCALE, RoundingMode.HALF_UP).setScale(2, RoundingMode.HALF_UP);
-        // Converts base currency value to target currency rounded to 2 decimal places
+        // then PHP -> target currency, rounded to 2 decimals
     }
 }

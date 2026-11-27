@@ -1,6 +1,6 @@
 /********************
  * Transaction.java
- * One immutable row of bank_transactions.csv (PHP only).
+ * One row of bank_transactions.csv (PHP only). It never changes once made.
  ********************/
 
 import java.math.BigDecimal;

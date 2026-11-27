@@ -17,7 +17,7 @@ public class MP_2_Java
         {
             new BankApp().run();
         }
-        catch (NoSuchElementException e) // console input was closed (Ctrl+D / end of piped input)
+        catch (NoSuchElementException e) // input got closed (Ctrl+D or piped input ran out)
         {
             System.out.println();
             System.out.println("Input closed. Goodbye.");

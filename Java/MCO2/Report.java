@@ -1,14 +1,14 @@
 /********************
  * Report.java
- * Contract for every report. A new report is one new class that implements
- * this interface and is added to the list in ReportService.
+ * The contract every report follows. Want a new report? Just make a class
+ * that implements this and add it to the list in ReportService.
  ********************/
 
 import java.util.List;
 
 public interface Report
 {
-    /** A finished table: header names plus rows already formatted for output. */
+    /** A ready-to-print table: header names plus rows that are already formatted. */
     record Table(List<String> headers, List<List<String>> rows) { }
 
     String title();      // e.g. "Banking Privilege Tiers"
@@ -17,7 +17,7 @@ public interface Report
 
     Table generate(Bank bank);
 
-    /** Short description shown under the report title (used by the custom reports). */
+    /** Short blurb shown under the report title (only reports that need one override this). */
     default String note()
     {
         return "";

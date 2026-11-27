@@ -1,6 +1,6 @@
 /********************
  * ReportService.java
- * Runs every report, exports each to its own CSV file (REQ-0012), prints a
+ * Runs every report, saves each one to its own CSV file (REQ-0012), prints a
  * 2-row preview, and writes summary.json (REQ-0010).
  ********************/
 
@@ -23,10 +23,7 @@ public class ReportService
             new PrivilegeTierReport(),
             interestReport,
             new SuspiciousBehaviorReport(),
-            new DormantAccountsReport(),     // Report 4: one custom report per group member
-            new MonthlyCashFlowReport(),
-            new ActivityRankingReport(),
-            new LargeTransactionsReport());
+            new DormantAccountsReport());    // Report 4: our custom report
 
     public ReportService(Path outputFolder)
     {
@@ -41,13 +38,12 @@ public class ReportService
             Report.Table table = report.generate(bank);
             writeCsv(report.fileName(), table);
 
-            boolean custom = report.title().startsWith("Report 4");
-            out.println(custom ? report.title() : "Report " + number + ": " + report.title());
+            out.println("Report " + number + ": " + report.title());
             if (!report.note().isEmpty()) out.println(report.note());
             printPreview(table, out);
             out.println("(Full table exported to " + report.fileName() + ")");
             out.println();
-            if (!custom) number++;
+            number++;
         }
 
         String summary = buildSummary(bank);

@@ -1,8 +1,8 @@
 /********************
  * InterestProjectionReport.java
  * REQ-0007 - Report 2: Interest Expense Projection.
- * Expected interest over the next 30 days for accounts holding at least
- * Php 10,000.00, sorted by ExpectedInterest (descending).
+ * Expected interest over the next 30 days for accounts with at least
+ * Php 10,000.00, sorted by ExpectedInterest (highest first).
  ********************/
 
 import java.math.BigDecimal;
@@ -29,7 +29,7 @@ public class InterestProjectionReport implements Report
         return "report2_interest_expense_projection.csv";
     }
 
-    /** Also used by the summary, so the total interest expense always matches this report. */
+    /** The summary uses this too, so the total interest expense always matches this report. */
     public List<Entry> entries(Bank bank)
     {
         List<Entry> entries = new ArrayList<>();

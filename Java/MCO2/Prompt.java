@@ -1,6 +1,6 @@
 /********************
  * Prompt.java
- * Console input with validation. Every method re-prompts until the answer is valid.
+ * Console input with validation. Every method keeps asking until the answer is valid.
  ********************/
 
 import java.math.BigDecimal;
@@ -12,7 +12,7 @@ public final class Prompt
 
     private Prompt() { }
 
-    public static String readText(String prompt) // non-empty text
+    public static String readText(String prompt) // text that isn't empty
     {
         while (true)
         {
@@ -23,7 +23,7 @@ public final class Prompt
         }
     }
 
-    public static int readInt(String prompt, int min, int max) // whole number in range
+    public static int readInt(String prompt, int min, int max) // whole number within the range
     {
         while (true)
         {
@@ -35,13 +35,13 @@ public final class Prompt
             }
             catch (NumberFormatException ignored)
             {
-                // falls through to the re-prompt message
+                // just fall through to the "try again" message
             }
             System.out.println("Enter a whole number from " + min + " to " + max + ".");
         }
     }
 
-    public static BigDecimal readPositiveDecimal(String prompt) // amount greater than zero; commas allowed
+    public static BigDecimal readPositiveDecimal(String prompt) // amount above zero, commas are fine
     {
         while (true)
         {

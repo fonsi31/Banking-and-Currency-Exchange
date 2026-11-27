@@ -1,11 +1,11 @@
 /********************
  * DormantAccountsReport.java
- * REQ-0009 - Report 4A (custom): Dormant Accounts.
+ * REQ-0009 - Report 4 (custom): Dormant Accounts.
  *
- * Justification: a bank loses deposits quietly when customers stop using an
- * account. Listing accounts with no transaction in the last 7 days, largest
- * balance first, tells relationship managers who to contact before the
- * money leaves.
+ * Why this report: a bank quietly loses deposits when customers stop using
+ * their accounts. Listing accounts with no transaction in the last 7 days
+ * (longest idle first) shows relationship managers who to reach out to
+ * before the money leaves.
  ********************/
 
 import java.math.BigDecimal;
@@ -24,13 +24,13 @@ public class DormantAccountsReport implements Report
     @Override
     public String title()
     {
-        return "Report 4A - Dormant Accounts";
+        return "Dormant Accounts";
     }
 
     @Override
     public String fileName()
     {
-        return "report4a_dormant_accounts.csv";
+        return "report4_dormant_accounts.csv";
     }
 
     @Override

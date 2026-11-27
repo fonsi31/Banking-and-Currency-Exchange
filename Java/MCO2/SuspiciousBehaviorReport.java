@@ -1,11 +1,11 @@
 /********************
  * SuspiciousBehaviorReport.java
  * REQ-0008 - Report 3: Suspicious Client Behavior.
- * One row per account per active day. Sorted by Date (ascending), then
- * RiskFlagLevel (Suspicious before Normal).
+ * One row per account per active day. Sorted by Date (oldest first), then
+ * RiskFlagLevel (Suspicious goes before Normal).
  *
- * TurnoverVelocity = TotalWithdrawal / TotalDeposit x 100. On a day with no
- * deposits the ratio is undefined, so it is reported as 0.00 and only the
+ * TurnoverVelocity = TotalWithdrawal / TotalDeposit x 100. If there were no
+ * deposits that day the ratio doesn't exist, so we show 0.00 and only the
  * Php 500,000.00 withdrawal rule can flag that day.
  ********************/
 
@@ -46,7 +46,7 @@ public class SuspiciousBehaviorReport implements Report
 
         boolean isSuspicious()
         {
-            // Compares withdrawals x 100 with deposits x 90 so no rounding or division is involved.
+            // Compare withdrawals x 100 with deposits x 90 so we skip division and rounding.
             boolean highVelocity = deposits.signum() > 0
                     && withdrawals.multiply(HUNDRED).compareTo(deposits.multiply(VELOCITY_LIMIT)) >= 0;
             return withdrawals.compareTo(WITHDRAWAL_LIMIT) >= 0 || highVelocity;
@@ -87,7 +87,7 @@ public class SuspiciousBehaviorReport implements Report
             days.forEach((date, totals) -> rows.add(new Row(account.getName(), date, totals, totals.isSuspicious())));
         }
 
-        // Date ascending, Suspicious before Normal, then name so the output is deterministic.
+        // Date oldest first, Suspicious before Normal, then name so the output is always in the same order.
         rows.sort(Comparator.comparing(Row::date)
                 .thenComparing(Comparator.comparing(Row::suspicious).reversed())
                 .thenComparing(Row::name));

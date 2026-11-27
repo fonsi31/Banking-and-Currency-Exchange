@@ -1,8 +1,8 @@
 /********************
  * Bank.java
- * Holds every registered account and performs registration, deposits and
- * withdrawals. Each change is saved to bank_transactions.csv before it is
- * applied in memory, so the file and the program never disagree.
+ * Keeps all the registered accounts and handles registration, deposits and
+ * withdrawals. Every change gets saved to bank_transactions.csv first, then
+ * applied in memory, so the file and the program always match.
  ********************/
 
 import java.io.IOException;
@@ -21,11 +21,11 @@ public class Bank
 {
     public static final BigDecimal MINIMUM_INITIAL_DEPOSIT = new BigDecimal("5000.00");
     private static final long FIRST_ACCOUNT_NUMBER = 1092000001L;
-    // "First name Last name": two or more words made of letters, apostrophes, periods or hyphens.
+    // "First name Last name": two or more words, only letters, apostrophes, periods or hyphens.
     private static final Pattern FULL_NAME = Pattern.compile("\\p{L}[\\p{L}'.-]*(\\s+\\p{L}[\\p{L}'.-]*)+");
 
     private final TransactionFile file;
-    private final Map<String, Account> accounts = new LinkedHashMap<>(); // keyed by account number
+    private final Map<String, Account> accounts = new LinkedHashMap<>(); // key is the account number
     private long highestNumber = FIRST_ACCOUNT_NUMBER - 1;
 
     public Bank(TransactionFile file)
@@ -35,7 +35,7 @@ public class Bank
 
     // Loading
 
-    /** Replaces everything in memory with the given (already cleaned and sorted) transactions. */
+    /** Wipes what's in memory and reloads it from the given transactions (already cleaned and sorted). */
     public void load(Collection<Transaction> transactions)
     {
         accounts.clear();
@@ -60,7 +60,7 @@ public class Bank
         return accounts.values().stream().flatMap(a -> a.getHistory().stream());
     }
 
-    /** Finds an account by its 10-digit number or by its exact (case-sensitive) name. */
+    /** Looks up an account by its 10-digit number or its exact name (case-sensitive). */
     public Account find(String nameOrNumber)
     {
         Account byNumber = accounts.get(nameOrNumber);
@@ -68,7 +68,7 @@ public class Bank
         return accounts.values().stream().filter(a -> a.getName().equals(nameOrNumber)).findFirst().orElse(null);
     }
 
-    /** Date of the most recent transaction in the data; the "today" that reports are measured from. */
+    /** Date of the latest transaction in the data. This is the "today" the reports count from. */
     public LocalDate latestActivityDate()
     {
         return accounts.values().stream()
@@ -85,7 +85,7 @@ public class Bank
 
     // Commands
 
-    /** Validates an account name and returns it tidied (trimmed, single spaces). Throws if unusable. */
+    /** Checks the account name and returns it cleaned up (trimmed, single spaces). Throws if it's no good. */
     public String checkName(String rawName)
     {
         String name = rawName.trim().replaceAll("\\s+", " ");
@@ -100,7 +100,7 @@ public class Bank
         return name;
     }
 
-    /** REQ-0001: registers a new account with the next account number and an initial deposit. */
+    /** REQ-0001: registers a new account with the next account number plus the initial deposit. */
     public Account register(String rawName, BigDecimal initialDeposit) throws IOException
     {
         String name = checkName(rawName);
@@ -127,10 +127,10 @@ public class Bank
         account.record(save(account, Transaction.Type.WITHDRAWAL, amount));
     }
 
-    /** REQ-0002: builds the transaction, appends it to the CSV, and returns it for the caller to apply. */
+    /** REQ-0002: builds the transaction, appends it to the CSV, then hands it back so the caller can apply it. */
     private Transaction save(Account account, Transaction.Type type, BigDecimal amount) throws IOException
     {
-        // Never earlier than the account's last transaction, so its history stays in order.
+        // Never earlier than the account's last transaction, so the history stays in order.
         LocalDateTime now = LocalDateTime.now().withNano(0);
         LocalDateTime when = now.isAfter(account.lastActivity()) ? now : account.lastActivity();
 

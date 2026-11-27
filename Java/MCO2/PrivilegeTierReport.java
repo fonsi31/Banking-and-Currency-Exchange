@@ -1,8 +1,8 @@
 /********************
  * PrivilegeTierReport.java
  * REQ-0006 - Report 1: Banking Privilege Tiers.
- * Clients whose AverageDailyBalance in the last month is at least Php 100,000.00,
- * sorted by AverageDailyBalance (descending).
+ * Clients whose AverageDailyBalance last month is at least Php 100,000.00,
+ * sorted by AverageDailyBalance (highest first).
  ********************/
 
 import java.math.BigDecimal;
@@ -41,7 +41,7 @@ public class PrivilegeTierReport implements Report
 
         if (asOf != null)
         {
-            YearMonth lastMonth = YearMonth.from(asOf); // the latest month in the data
+            YearMonth lastMonth = YearMonth.from(asOf); // latest month in the data
             for (Account account : bank.getAccounts())
             {
                 BigDecimal average = averageDailyBalance(account, lastMonth);
@@ -63,7 +63,7 @@ public class PrivilegeTierReport implements Report
         return new Table(List.of("AccountName", "AccountAge", "CurrentBalance", "AverageDailyBalance", "PrivilegeTier"), out);
     }
 
-    /** Sum of every day's End-of-Day balance in the month / number of days in the month. */
+    /** Add up every day's End-of-Day balance in the month, then divide by the number of days in the month. */
     private static BigDecimal averageDailyBalance(Account account, YearMonth month)
     {
         BigDecimal sum = BigDecimal.ZERO;

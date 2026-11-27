@@ -1,8 +1,8 @@
 /********************
  * TransactionFile.java
- * Data ingestion for bank_transactions.csv (REQ-0001 to REQ-0005):
- * reads the file, keeps PHP rows only, validates and cleans each row,
- * and appends new transactions.
+ * Handles bank_transactions.csv (REQ-0001 to REQ-0005):
+ * reads the file, keeps only the PHP rows, checks and cleans each row,
+ * and adds new transactions at the end.
  ********************/
 
 import java.io.BufferedReader;
@@ -30,7 +30,7 @@ public class TransactionFile
     private static final int NAME = 0, NUMBER = 1, DATE = 2, TIME = 3, CURRENCY = 4, AMOUNT = 5, TYPE = 6, BALANCE = 7;
     private static final Pattern ACCOUNT_NUMBER = Pattern.compile("\\d{10}");
 
-    /** Outcome of one load: counts for the log, the cleaned rows, and the problems found. */
+    /** What one load gives back: counts for the log, the cleaned rows, and any problems found. */
     public record LoadResult(int rowsRead, int phpRows, int nonPhpRows, List<Transaction> transactions, List<String> errors) { }
 
     private final Path path;
@@ -59,7 +59,7 @@ public class TransactionFile
         {
             try (BufferedReader in = Files.newBufferedReader(path, StandardCharsets.UTF_8))
             {
-                in.readLine(); // header
+                in.readLine(); // skip the header
                 int lineNo = 1;
                 String line;
                 while ((line = in.readLine()) != null)
@@ -76,7 +76,7 @@ public class TransactionFile
                             throw new IllegalArgumentException("expected " + HEADER.size() + " columns but found " + f.size());
                         }
                         requireValue(f, CURRENCY);
-                        if (!f.get(CURRENCY).trim().equalsIgnoreCase("PHP")) // REQ-0003: PHP only
+                        if (!f.get(CURRENCY).trim().equalsIgnoreCase("PHP")) // REQ-0003: PHP only, skip the rest
                         {
                             nonPhpRows++;
                             continue;
@@ -91,7 +91,7 @@ public class TransactionFile
                 }
             }
         }
-        valid.sort(Comparator.comparing(Transaction::timestamp)); // stable: keeps file order for equal timestamps
+        valid.sort(Comparator.comparing(Transaction::timestamp)); // stable sort, so same-timestamp rows keep their file order
         return new LoadResult(rowsRead, phpRows, nonPhpRows, valid, errors);
     }
 
@@ -157,7 +157,7 @@ public class TransactionFile
 
     // Writing
 
-    /** Appends one transaction row, creating the file with its header first if needed. */
+    /** Adds one transaction row at the end. Makes the file (with its header) first if it's not there yet. */
     public void append(Transaction t) throws IOException
     {
         boolean isNew = !Files.exists(path) || Files.size(path) == 0;

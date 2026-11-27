@@ -1,7 +1,7 @@
 /********************
  * BankApp.java
- * The console screens. All banking rules live in Bank, Account and the
- * report classes; this class only asks questions and prints answers.
+ * The console screens. All the banking rules live in Bank, Account and the
+ * report classes. This class just asks questions and prints answers.
  ********************/
 
 import java.io.IOException;
@@ -11,7 +11,7 @@ import java.util.List;
 
 public class BankApp
 {
-    private static final int MAX_DAYS = 10000; // hard limit on days for the interest table
+    private static final int MAX_DAYS = 10000; // max days allowed for the interest table
     private static final int MAX_ERRORS_SHOWN = 10;
 
     private final TransactionFile file = new TransactionFile(Path.of("bank_transactions.csv"));
@@ -28,7 +28,9 @@ public class BankApp
             printSeparator();
             showMainMenu();
 
-            int choice = Prompt.readInt("Choice: ", 1, 7);
+            int choice = Prompt.readInt("Choice: ", 1, 8);
+            if (choice == 8) break; // Exit
+
             switch (choice)
             {
                 case 1 -> registerAccountScreen();
@@ -39,9 +41,7 @@ public class BankApp
                 case 6 -> showInterestScreen();
                 case 7 -> reportsScreen();
             }
-
-            // The reports screen has its own "back" option, so it skips this question.
-            if (choice != 7 && !Prompt.askYesNo("Back to the Main Menu (Y/N): ")) break;
+            // every screen ends back here at the main menu
         }
         System.out.println("Thank you for banking with us.");
     }
@@ -64,6 +64,7 @@ public class BankApp
         System.out.println("[5] Record Exchange Rates");
         System.out.println("[6] Show Interest Amount");
         System.out.println("[7] Generate Reports");
+        System.out.println("[8] Exit");
         System.out.println();
     }
 
@@ -80,55 +81,61 @@ public class BankApp
 
     private void registerAccountScreen()
     {
-        System.out.println("Register Account");
-        try
+        do
         {
-            String name = bank.checkName(Prompt.readText("Account Name (First name Last name): "));
-            BigDecimal deposit = Prompt.readDecimalAtLeast(
-                    "Initial Deposit (minimum " + Formats.plain(Bank.MINIMUM_INITIAL_DEPOSIT) + "): ", Bank.MINIMUM_INITIAL_DEPOSIT);
+            System.out.println("Register Account");
+            try
+            {
+                String name = bank.checkName(Prompt.readText("Account Name (First name Last name): "));
+                BigDecimal deposit = Prompt.readDecimalAtLeast(
+                        "Initial Deposit (minimum " + Formats.plain(Bank.MINIMUM_INITIAL_DEPOSIT) + "): ", Bank.MINIMUM_INITIAL_DEPOSIT);
 
-            Account account = bank.register(name, deposit);
-            System.out.println("Account registered successfully.");
-            showAccountSummary(account);
-        }
-        catch (IllegalArgumentException e)
-        {
-            System.out.println("Registration failed: " + e.getMessage());
-        }
-        catch (IOException e)
-        {
-            System.out.println("Could not save to " + file.getPath() + ": " + e.getMessage());
-        }
-        System.out.println();
+                Account account = bank.register(name, deposit);
+                System.out.println("Account registered successfully.");
+                showAccountSummary(account);
+            }
+            catch (IllegalArgumentException e)
+            {
+                System.out.println("Registration failed: " + e.getMessage());
+            }
+            catch (IOException e)
+            {
+                System.out.println("Could not save to " + file.getPath() + ": " + e.getMessage());
+            }
+            System.out.println();
+        } while (Prompt.askYesNo("Register another account? (Y/N): ")); // N goes back to the main menu
     }
 
     // [2] Deposit and [3] Withdraw share one screen
 
     private void transactionScreen(String action, boolean isDeposit)
     {
-        System.out.println(action + " Amount");
-        Account account = selectAccount();
-        if (account == null) return;
+        do
+        {
+            System.out.println(action + " Amount");
+            Account account = selectAccount();
+            if (account == null) return; // no account to work with, back to the main menu
 
-        showAccountSummary(account);
-        BigDecimal amount = readTransactionAmount(action, account);
-        if (amount == null) return;
+            showAccountSummary(account);
+            BigDecimal amount = readTransactionAmount(action, account);
+            if (amount == null) return;
 
-        try
-        {
-            if (isDeposit) bank.deposit(account, amount);
-            else bank.withdraw(account, amount);
-            System.out.println("Updated Balance: " + Formats.plain(account.getBalance()));
-        }
-        catch (IllegalArgumentException e) // invalid amount or insufficient balance
-        {
-            System.out.println(action + " failed: " + e.getMessage());
-        }
-        catch (IOException e)
-        {
-            System.out.println("Could not save to " + file.getPath() + ": " + e.getMessage());
-        }
-        System.out.println();
+            try
+            {
+                if (isDeposit) bank.deposit(account, amount);
+                else bank.withdraw(account, amount);
+                System.out.println("Updated Balance: " + Formats.plain(account.getBalance()));
+            }
+            catch (IllegalArgumentException e) // bad amount or not enough balance
+            {
+                System.out.println(action + " failed: " + e.getMessage());
+            }
+            catch (IOException e)
+            {
+                System.out.println("Could not save to " + file.getPath() + ": " + e.getMessage());
+            }
+            System.out.println();
+        } while (Prompt.askYesNo(action + " another amount? (Y/N): ")); // N goes back to the main menu
     }
 
     // [4] Currency Exchange
@@ -157,7 +164,7 @@ public class BankApp
                 System.out.println("Cannot convert currencies.");
             }
             System.out.println();
-        } while (Prompt.askYesNo("Convert another currency (Y/N)? "));
+        } while (Prompt.askYesNo("Convert another currency? (Y/N): "));
     }
 
     // [5] Record Exchange Rates
@@ -194,7 +201,7 @@ public class BankApp
         int days = Prompt.readInt("Total Number of Days: ", 1, MAX_DAYS);
         System.out.println();
 
-        StringBuilder table = new StringBuilder("Day  | Interest  | Balance    |\n"); // one print call: fast for 10,000 rows
+        StringBuilder table = new StringBuilder("Day  | Interest  | Balance    |\n"); // one print call so 10,000 rows still print fast
         for (Account.InterestEntry row : account.projectInterest(days))
         {
             table.append(String.format("%-4d | %-9s | %-10s |%n", row.getDay(),
@@ -226,7 +233,7 @@ public class BankApp
         }
     }
 
-    /** REQ-0003 to REQ-0005: reads the CSV, keeps PHP rows, validates and cleans them. */
+    /** REQ-0003 to REQ-0005: reads the CSV, keeps the PHP rows, then checks and cleans them. */
     private void loadDataset(boolean verbose)
     {
         System.out.println();
@@ -315,7 +322,7 @@ public class BankApp
         System.out.println();
     }
 
-    /** Asks for a currency and amount, and returns the amount converted to the account's currency (PHP). */
+    /** Asks for a currency and amount, then gives back the amount converted to the account's currency (PHP). */
     private BigDecimal readTransactionAmount(String action, Account account)
     {
         System.out.println(action + " Currency:");

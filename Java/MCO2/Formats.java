@@ -1,6 +1,6 @@
 /********************
  * Formats.java
- * Shared date, time, number and CSV helpers.
+ * Shared helpers for dates, times, numbers and CSV stuff.
  ********************/
 
 import java.math.BigDecimal;
@@ -13,7 +13,7 @@ import java.util.Locale;
 
 public final class Formats
 {
-    // Strict resolver rejects impossible dates such as 31/02/2026.
+    // Strict resolver so fake dates like 31/02/2026 get rejected.
     public static final DateTimeFormatter DATE_IN = DateTimeFormatter.ofPattern("d/M/uuuu").withResolverStyle(ResolverStyle.STRICT);
     public static final DateTimeFormatter TIME_IN = DateTimeFormatter.ofPattern("H:mm:ss").withResolverStyle(ResolverStyle.STRICT);
     public static final DateTimeFormatter DATE_OUT = DateTimeFormatter.ofPattern("dd/MM/uuuu");
@@ -21,13 +21,13 @@ public final class Formats
 
     private Formats() { }
 
-    /** 1234.5 -> "1234.50" (console, JSON and CSV storage). */
+    /** 1234.5 -> "1234.50" (for the console, JSON and CSV storage). */
     public static String plain(BigDecimal value)
     {
         return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
-    /** 1234.5 -> "1,234.50" (report CSVs, REQ-0012). */
+    /** 1234.5 -> "1,234.50" (for the report CSVs, REQ-0012). */
     public static String money(BigDecimal value)
     {
         return String.format(Locale.US, "%,.2f", value);
@@ -35,7 +35,7 @@ public final class Formats
 
     // CSV
 
-    /** Wraps a field in quotes when it contains a comma, quote or line break. */
+    /** Puts quotes around a field if it has a comma, quote or line break in it. */
     public static String csvField(String field)
     {
         if (field.contains(",") || field.contains("\"") || field.contains("\n"))
@@ -56,7 +56,7 @@ public final class Formats
         return line.toString();
     }
 
-    /** Splits one CSV line, honouring quoted fields. */
+    /** Splits one CSV line into fields, quoted fields included. */
     public static List<String> parseCsvLine(String line)
     {
         List<String> fields = new ArrayList<>();

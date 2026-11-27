@@ -1,6 +1,6 @@
 /********************
  * Account.java
- * One bank account: its identity, balance and full transaction history.
+ * One bank account: who it belongs to, its balance and its whole transaction history.
  * The balance is always the CurrentBalance of the latest transaction.
  ********************/
 
@@ -17,14 +17,14 @@ import java.util.TreeMap;
 
 public class Account
 {
-    public static final BigDecimal ANNUAL_INTEREST_RATE = new BigDecimal("0.05"); // 5% per annum
+    public static final BigDecimal ANNUAL_INTEREST_RATE = new BigDecimal("0.05"); // 5% a year
     private static final BigDecimal DAYS_IN_YEAR = new BigDecimal("365");
 
     private final String number;
     private final String name;
     private BigDecimal balance = BigDecimal.ZERO;
-    private final List<Transaction> history = new ArrayList<>();                      // chronological
-    private final NavigableMap<LocalDate, BigDecimal> endOfDayBalances = new TreeMap<>(); // last balance of each active day
+    private final List<Transaction> history = new ArrayList<>();                      // oldest to newest
+    private final NavigableMap<LocalDate, BigDecimal> endOfDayBalances = new TreeMap<>(); // last balance of each day with activity
 
     public Account(String number, String name)
     {
@@ -101,8 +101,8 @@ public class Account
     // Transactions
 
     /**
-     * Builds the transaction a deposit or withdrawal would create, without applying it.
-     * The caller saves it and then calls record(), so a failed save leaves the account untouched.
+     * Builds the transaction a deposit or withdrawal would make, but doesn't apply it yet.
+     * The caller saves it first and then calls record(), so if saving fails the account stays untouched.
      */
     public Transaction newTransaction(Transaction.Type type, BigDecimal amount, LocalDateTime when)
     {
@@ -124,15 +124,15 @@ public class Account
         return new Transaction(name, number, when, type, money, after);
     }
 
-    /** Applies a transaction (new or loaded from file). Transactions must arrive in chronological order. */
+    /** Applies a transaction (new or loaded from the file). They have to come in oldest-first. */
     public void record(Transaction t)
     {
         history.add(t);
         balance = t.balanceAfter();
-        endOfDayBalances.put(t.date(), t.balanceAfter()); // later transactions on the same day overwrite
+        endOfDayBalances.put(t.date(), t.balanceAfter()); // a later transaction on the same day overwrites this
     }
 
-    /** End-of-Day balance on a date; carries forward over idle days, 0 before the account was opened. */
+    /** End-of-Day balance on a date. Idle days just carry the last balance forward, and it's 0 before the account existed. */
     public BigDecimal endOfDayBalance(LocalDate date)
     {
         Map.Entry<LocalDate, BigDecimal> entry = endOfDayBalances.floorEntry(date);
@@ -164,7 +164,7 @@ public class Account
         return table;
     }
 
-    /** Total compounded interest earned over the given number of days (no table built). */
+    /** Total compounded interest over the given number of days (doesn't build the table). */
     public BigDecimal expectedInterest(int days)
     {
         BigDecimal running = balance;
@@ -181,7 +181,7 @@ public class Account
         {
             throw new IllegalArgumentException("Amount is required.");
         }
-        BigDecimal money = amount.setScale(2, RoundingMode.HALF_UP); // centavo precision
+        BigDecimal money = amount.setScale(2, RoundingMode.HALF_UP); // down to the centavo
         if (money.signum() <= 0)
         {
             throw new IllegalArgumentException("Amount must be greater than zero.");
